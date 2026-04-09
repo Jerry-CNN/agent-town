@@ -145,6 +145,11 @@ class Maze:
     def tile_at(self, coord: tuple[int, int]) -> Tile:
         """Return the Tile at (x, y) coordinate."""
         x, y = coord
+        if not (0 <= x < self.width and 0 <= y < self.height):
+            raise IndexError(
+                f"Coordinate {coord} is out of bounds "
+                f"(width={self.width}, height={self.height})"
+            )
         return self.tiles[y][x]
 
     # ------------------------------------------------------------------
