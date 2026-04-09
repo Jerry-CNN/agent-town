@@ -140,8 +140,8 @@ def _add_building(
     # Pre-compute which interior coords belong to which arena
     arena_map: dict[tuple[int, int], str] = {}
     for arena_name, ax1, ay1, ax2, ay2 in arenas:
-        for y in range(ay1 + 1, ay2 - 1):
-            for x in range(ax1 + 1, ax2 - 1):
+        for y in range(ay1 + 1, ay2):
+            for x in range(ax1 + 1, ax2):
                 arena_map[(x, y)] = arena_name
 
     # Fill all interior coords with address entries
