@@ -636,20 +636,20 @@ def test_agents_have_required_fields():
 
 ## Open Questions
 
-1. **Standard Tiled format vs. custom format for Phase 5**
+1. **Standard Tiled format vs. custom format for Phase 5** — DEFERRED to Phase 5
    - What we know: D-05 says "Tiled-compatible JSON." The backend uses the custom format. `pixi-tiledmap` (Phase 5) expects standard Tiled export.
    - What's unclear: Does Phase 5 need a second, rendering-specific map file, or does pixi-tiledmap accept the custom format?
    - Recommendation: Phase 5 planner should resolve this. Phase 2 generates the backend format without visual tile IDs. A converter or a second visual map file (authored separately with Tiled app) is the likely resolution.
+   - **Status: DEFERRED to Phase 5 planning.** Phase 2 outputs the backend-oriented custom JSON format. Phase 5 planner must decide whether to add a converter or author a separate visual map file.
 
-2. **Agent cast final names and occupations**
+2. **Agent cast final names and occupations** — RESOLVED in Plan 02-02
    - What we know: 8-10 agents needed (D-08); diverse occupations listed conceptually.
    - What's unclear: Exact names, personality text, spawn coordinates within the designed map.
-   - Recommendation: Plan wave that generates agent JSON files should finalize the cast. Suggest: Alice (barista, cafe), Bob (stockbroker, stock-exchange), Carla (florist, shop), David (office worker, office), Emma (baker, shop), Frank (park keeper, park), Grace (wedding planner, wedding-hall), Henry (retired, home), Isabel (home), James (home).
+   - **Status: RESOLVED.** Plan 02-02 finalizes the cast as 8 agents: Alice (barista, cafe), Bob (stockbroker, stock-exchange), Carla (florist, shop), David (office worker, office), Emma (baker, shop), Frank (park keeper, park), Grace (wedding planner, wedding-hall), Henry (retired, home). Spawn coords specified per agent JSON config.
 
-3. **Road tiles between zones**
+3. **Road tiles between zones** — RESOLVED: anonymous walkable tiles
    - What we know: Agents commute between clusters (D-03). Roads must be walkable and addressable-or-anonymous.
-   - What's unclear: Do road tiles need addresses (e.g., `streets:main-street`) or are they anonymous walkable tiles?
-   - Recommendation: Anonymous walkable tiles (no address entry in JSON). BFS will route through them naturally. Only named zones need addresses. Phase 3 cognition uses location names from zones, not roads.
+   - **Status: RESOLVED.** Anonymous walkable tiles (no address entry in JSON). BFS routes through them naturally. Only named zones need addresses. Phase 3 cognition uses location names from zones, not roads. Implemented in Plan 02-01 map generator.
 
 ---
 

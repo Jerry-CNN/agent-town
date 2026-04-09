@@ -58,11 +58,12 @@ Plans:
 3. Each pre-defined agent (minimum 5) has a distinct name, personality traits, occupation, and default daily routine stored in their data structure.
 4. A unit test confirms pathfinding produces no path when start and goal are disconnected by obstacles.
 
-**Plans:** 2 plans
+**Plans:** 3 plans
 
 Plans:
 - [ ] 02-01-PLAN.md — World data model (Tile + Maze classes), programmatic 100x100 town map generator with thematic locations, BFS pathfinding with destination resolution, comprehensive unit tests (Wave 1)
 - [ ] 02-02-PLAN.md — Agent personality schemas (Pydantic v2), 8 diverse agent JSON configs with traits/occupation/routine, agent loader module, agent validation tests (Wave 1, parallel to 01)
+- [ ] 02-03-PLAN.md — Cross-plan integration validation: agent spawn coords vs town.json walkability, sector existence checks, connected graph assertion (Wave 2, depends on 01 + 02)
 
 ---
 
