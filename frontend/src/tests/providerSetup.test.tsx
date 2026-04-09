@@ -1,10 +1,10 @@
 /**
  * Tests for ProviderSetup modal component.
- * TDD RED phase — all tests initially fail (components don't exist yet).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, fireEvent, screen, waitFor } from "@testing-library/react";
+import { render, fireEvent, screen, waitFor, act } from "@testing-library/react";
 import { useSimulationStore } from "../store/simulationStore";
+import { ProviderSetup } from "../components/ProviderSetup";
 
 // Reset store and mocks before each test
 beforeEach(() => {
@@ -13,16 +13,9 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-// NOTE: Components are imported after store reset to avoid hoisting issues
-async function getProviderSetup() {
-  const { ProviderSetup } = await import("../components/ProviderSetup");
-  return ProviderSetup;
-}
-
 describe("ProviderSetup", () => {
-  it("Test 1: renders Ollama and OpenRouter radio buttons with Ollama pre-selected", async () => {
-    const ProviderSetup = await getProviderSetup();
-    render(ProviderSetup({}));
+  it("Test 1: renders Ollama and OpenRouter radio buttons with Ollama pre-selected", () => {
+    render(<ProviderSetup />);
 
     const ollamaRadio = screen.getByRole("radio", { name: /ollama/i });
     const openrouterRadio = screen.getByRole("radio", { name: /openrouter/i });
@@ -34,9 +27,8 @@ describe("ProviderSetup", () => {
     expect((openrouterRadio as HTMLInputElement).checked).toBe(false);
   });
 
-  it("Test 2: selecting OpenRouter shows API key input; selecting Ollama hides it", async () => {
-    const ProviderSetup = await getProviderSetup();
-    render(ProviderSetup({}));
+  it("Test 2: selecting OpenRouter shows API key input; selecting Ollama hides it", () => {
+    render(<ProviderSetup />);
 
     const openrouterRadio = screen.getByRole("radio", { name: /openrouter/i });
 
@@ -53,9 +45,8 @@ describe("ProviderSetup", () => {
     expect(screen.queryByLabelText(/openrouter api key/i)).toBeNull();
   });
 
-  it("Test 3: Continue button is disabled when OpenRouter selected and API key is empty", async () => {
-    const ProviderSetup = await getProviderSetup();
-    render(ProviderSetup({}));
+  it("Test 3: Continue button is disabled when OpenRouter selected and API key is empty", () => {
+    render(<ProviderSetup />);
 
     // Select OpenRouter
     const openrouterRadio = screen.getByRole("radio", { name: /openrouter/i });
@@ -65,9 +56,8 @@ describe("ProviderSetup", () => {
     expect((continueBtn as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("Test 4: Continue button is enabled when OpenRouter selected and API key is non-empty", async () => {
-    const ProviderSetup = await getProviderSetup();
-    render(ProviderSetup({}));
+  it("Test 4: Continue button is enabled when OpenRouter selected and API key is non-empty", () => {
+    render(<ProviderSetup />);
 
     // Select OpenRouter
     const openrouterRadio = screen.getByRole("radio", { name: /openrouter/i });
@@ -88,12 +78,13 @@ describe("ProviderSetup", () => {
       json: async () => ({ status: "configured", provider: "ollama" }),
     }));
 
-    const ProviderSetup = await getProviderSetup();
-    render(ProviderSetup({}));
+    render(<ProviderSetup />);
 
     // Continue with Ollama (default selection)
     const continueBtn = screen.getByRole("button", { name: /continue/i });
-    fireEvent.click(continueBtn);
+    await act(async () => {
+      fireEvent.click(continueBtn);
+    });
 
     await waitFor(() => {
       // Check store was updated
@@ -109,7 +100,7 @@ describe("ProviderSetup", () => {
     expect(parsed.provider).toBe("ollama");
   });
 
-  it("Test 6: ProviderSetup is NOT rendered when localStorage has valid provider config", async () => {
+  it("Test 6: ProviderSetup is NOT rendered when store has valid provider config", () => {
     // Pre-populate localStorage
     localStorage.setItem(
       "agenttown_provider",
@@ -117,10 +108,12 @@ describe("ProviderSetup", () => {
     );
 
     // Simulate App reading localStorage and calling setProviderConfig
-    useSimulationStore.getState().setProviderConfig({ provider: "ollama" });
+    act(() => {
+      useSimulationStore.getState().setProviderConfig({ provider: "ollama" });
+    });
 
     // If providerConfig is set, App would not render ProviderSetup
-    // Verify the store prevents modal from appearing
+    // Verify the store has the config (App conditionally renders based on this)
     const storeConfig = useSimulationStore.getState().providerConfig;
     expect(storeConfig).not.toBeNull();
     expect(storeConfig?.provider).toBe("ollama");
