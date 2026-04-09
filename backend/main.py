@@ -6,7 +6,7 @@ import httpx
 from fastapi import FastAPI
 
 import backend.config as cfg
-from backend.routers import health, ws
+from backend.routers import health, ws, llm
 
 logger = logging.getLogger(__name__)
 
@@ -54,4 +54,4 @@ app = FastAPI(
 # Register routers
 app.include_router(health.router)          # GET /health
 app.include_router(ws.router)             # WebSocket /ws
-# LLM router registered in Task 2 (backend/routers/llm.py)
+app.include_router(llm.router)            # POST /api/llm/test, POST /api/config
