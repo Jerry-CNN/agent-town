@@ -38,9 +38,9 @@
 **Plans:** 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Backend scaffold: FastAPI, dual-provider async LLM gateway (Ollama + OpenRouter via LiteLLM + instructor), /health /api/config /ws endpoints, Pydantic v2 schemas, concurrency + retry tests (Wave 1)
-- [ ] 01-02-PLAN.md — Frontend scaffold: Vite/React/TS, map-dominant layout shell, PixiJS placeholder canvas, Zustand store, WebSocket hook, Biome config (Wave 1, parallel to 01)
-- [ ] 01-03-PLAN.md — Provider config UI + integration: first-visit setup modal (Ollama/OpenRouter selector, API key input), Ollama banner, localStorage persistence, e2e integration tests, human verification checkpoint (Wave 2)
+- [x] 01-01-PLAN.md — Backend scaffold: FastAPI, dual-provider async LLM gateway (Ollama + OpenRouter via LiteLLM + instructor), /health /api/config /ws endpoints, Pydantic v2 schemas, concurrency + retry tests (Wave 1)
+- [x] 01-02-PLAN.md — Frontend scaffold: Vite/React/TS, map-dominant layout shell, PixiJS placeholder canvas, Zustand store, WebSocket hook, Biome config (Wave 1, parallel to 01)
+- [x] 01-03-PLAN.md — Provider config UI + integration: first-visit setup modal (Ollama/OpenRouter selector, API key input), Ollama banner, localStorage persistence, e2e integration tests, human verification checkpoint (Wave 2)
 
 ---
 
