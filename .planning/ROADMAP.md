@@ -22,20 +22,25 @@
 
 ### Phase 1: Foundation
 
-**Goal:** The project runs end-to-end with async infrastructure, a working LLM gateway that routes to any provider, and structured output validated by Pydantic.
-**Requirements:** INF-01, INF-02, INF-03, CFG-01, CFG-02, CFG-03
+**Goal:** The project runs end-to-end with async infrastructure, an Ollama-backed LLM gateway (v1 local-only), structured output validated by Pydantic with retry/fallback, and the frontend app shell with map-dominant layout.
+**Requirements:** INF-01, INF-02, INF-03
 **UI hint:** yes
 **Depends on:** None
 
 ### Success Criteria
 
-1. Running `uvicorn` starts the FastAPI server without errors; a `/health` endpoint returns 200.
-2. User can submit an LLM provider name and API key via the configuration UI and receive a test response from that provider.
-3. An async task that simulates 10 concurrent agent "steps" completes all 10 in parallel (not sequentially), verified by log timestamps.
+1. Running `uvicorn backend.main:app` starts without errors; GET /health returns 200.
+2. Ollama availability is auto-detected on startup; a non-blocking banner appears in the UI if Ollama is not running.
+3. An async task that simulates 10 concurrent agent "steps" completes all 10 in parallel (not sequentially), verified by test timestamps.
 4. A malformed LLM JSON response triggers automatic retry and fallback without crashing the server.
-5. Cost estimate (token count and approximate USD) is displayed in the UI after a test LLM call.
+5. Browser at localhost:5173 renders the map-dominant layout: PixiJS canvas, collapsible sidebar, bottom bar.
 
-**Plans:** TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — FastAPI backend scaffold: health, Ollama health check, async LLM gateway (LiteLLM + instructor), WebSocket stub, Pydantic message schemas
+- [ ] 01-02-PLAN.md — React/Vite frontend scaffold: map-dominant layout shell, PixiJS placeholder, Zustand simulation store, WebSocket hook, stub components
+- [ ] 01-03-PLAN.md — Integration tests + human verification checkpoint: e2e test suite, full-stack smoke test, layout sign-off
 
 ---
 
@@ -181,7 +186,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/? | Not started | - |
+| 1. Foundation | 0/3 | Not started | - |
 | 2. World & Navigation | 0/? | Not started | - |
 | 3. Agent Cognition | 0/? | Not started | - |
 | 4. Simulation Engine & Transport | 0/? | Not started | - |
