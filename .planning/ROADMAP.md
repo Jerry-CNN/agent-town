@@ -58,7 +58,11 @@ Plans:
 3. Each pre-defined agent (minimum 5) has a distinct name, personality traits, occupation, and default daily routine stored in their data structure.
 4. A unit test confirms pathfinding produces no path when start and goal are disconnected by obstacles.
 
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — World data model (Tile + Maze classes), programmatic 100x100 town map generator with thematic locations, BFS pathfinding with destination resolution, comprehensive unit tests (Wave 1)
+- [ ] 02-02-PLAN.md — Agent personality schemas (Pydantic v2), 8 diverse agent JSON configs with traits/occupation/routine, agent loader module, agent validation tests (Wave 1, parallel to 01)
 
 ---
 
@@ -73,7 +77,7 @@ Plans:
 
 1. An agent generates a daily schedule decomposed into sub-tasks when prompted, using an LLM call with structured Pydantic output.
 2. An agent's perception radius correctly returns all events and other agents within N tiles and ignores those outside the radius.
-3. After 10 experiences are stored in the memory stream, retrieval returns the top-k most relevant by composite score (recency × 0.5 + relevance × 3 + importance × 2).
+3. After 10 experiences are stored in the memory stream, retrieval returns the top-k most relevant by composite score (recency x 0.5 + relevance x 3 + importance x 2).
 4. Two agents within proximity initiate a multi-turn conversation (at least 2 exchanges), and both agents produce revised schedules after the conversation ends.
 5. An LLM decision call given a perception input and memory context returns a structured action (destination + activity) without parse errors.
 
@@ -120,7 +124,7 @@ Plans:
 
 ### Phase 6: Event Injection
 
-**Goal:** Users can type any free-text event, choose broadcast or whisper delivery, and watch the event propagate through agents — including organic gossip spread for whispered events.
+**Goal:** Users can type any free-text event, choose broadcast or whisper delivery, and watch the event propagate through agents -- including organic gossip spread for whispered events.
 **Requirements:** EVT-01, EVT-02, EVT-03, EVT-04
 **UI hint:** yes
 **Depends on:** Phase 5
@@ -187,7 +191,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/3 | Not started | - |
-| 2. World & Navigation | 0/? | Not started | - |
+| 2. World & Navigation | 0/2 | Not started | - |
 | 3. Agent Cognition | 0/? | Not started | - |
 | 4. Simulation Engine & Transport | 0/? | Not started | - |
 | 5. Frontend | 0/? | Not started | - |
