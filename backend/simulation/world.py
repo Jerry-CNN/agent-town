@@ -21,6 +21,14 @@ from typing import Union
 ADDRESS_KEYS: list[str] = ["world", "sector", "arena"]
 
 
+def _validate_level(level: str) -> None:
+    """Raise a descriptive ValueError if *level* is not in ADDRESS_KEYS."""
+    if level not in ADDRESS_KEYS:
+        raise ValueError(
+            f"Invalid address level {level!r}. Must be one of: {ADDRESS_KEYS}"
+        )
+
+
 @dataclass
 class Tile:
     """Represents one grid square in the town map.
@@ -58,6 +66,8 @@ class Tile:
         Returns:
             Sliced address as list or string.
         """
+        if level is not None:
+            _validate_level(level)
         if level is None or level == ADDRESS_KEYS[-1]:
             addr = self.address
         else:
@@ -76,6 +86,7 @@ class Tile:
 
     def has_address(self, level: str) -> bool:
         """True if the tile has an address component at *level*."""
+        _validate_level(level)
         key_idx = ADDRESS_KEYS.index(level)
         return len(self.address) > key_idx
 
