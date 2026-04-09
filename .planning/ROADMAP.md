@@ -82,7 +82,12 @@ Plans:
 4. Two agents within proximity initiate a multi-turn conversation (at least 2 exchanges), and both agents produce revised schedules after the conversation ends.
 5. An LLM decision call given a perception input and memory context returns a structured action (destination + activity) without parse errors.
 
-**Plans:** TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — ChromaDB memory stream with async wrappers, composite-scored retrieval, LLM importance scoring, all Phase 3 Pydantic v2 cognition schemas (Wave 1)
+- [ ] 03-02-PLAN.md — Tile-grid perception scan within radius, two-level daily schedule generation via LLM with hourly blocks and sub-task decomposition (Wave 2)
+- [ ] 03-03-PLAN.md — LLM-powered action decisions from perception+memory context, multi-turn conversation system with cooldown, post-conversation schedule revision (Wave 3)
 
 ---
 
@@ -193,7 +198,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/3 | Not started | - |
 | 2. World & Navigation | 0/2 | Not started | - |
-| 3. Agent Cognition | 0/? | Not started | - |
+| 3. Agent Cognition | 0/3 | Not started | - |
 | 4. Simulation Engine & Transport | 0/? | Not started | - |
 | 5. Frontend | 0/? | Not started | - |
 | 6. Event Injection | 0/? | Not started | - |
