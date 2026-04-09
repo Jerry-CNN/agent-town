@@ -12,7 +12,8 @@ Users can type any event and immediately see AI agents respond to it in a living
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Custom town map with thematic locations (stock exchange, wedding hall, park, homes, shops, etc.) — Validated in Phase 2: World & Navigation
+- [x] Agents have distinct personality traits, occupations, and daily routine templates — Validated in Phase 2: World & Navigation
 
 ### Active
 
@@ -97,4 +98,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-08 after initialization*
+*Last updated: 2026-04-09 after Phase 2 completion*
