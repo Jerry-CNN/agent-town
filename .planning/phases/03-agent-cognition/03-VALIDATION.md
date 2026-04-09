@@ -1,9 +1,9 @@
 ---
 phase: 03
 slug: agent-cognition
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: approved
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-04-09
 ---
 
@@ -38,22 +38,26 @@ created: 2026-04-09
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 03-01-01 | 01 | 0 | AGT-05 | — | N/A | unit | `uv run pytest tests/test_memory.py -x -q` | ❌ W0 | ⬜ pending |
-| 03-02-01 | 02 | 1 | AGT-02 | — | N/A | unit | `uv run pytest tests/test_cognition.py -x -q` | ❌ W0 | ⬜ pending |
-| 03-03-01 | 03 | 1 | AGT-03 | — | N/A | unit | `uv run pytest tests/test_cognition.py -x -q` | ❌ W0 | ⬜ pending |
-| 03-04-01 | 04 | 2 | AGT-07, AGT-08 | — | N/A | unit | `uv run pytest tests/test_cognition.py -x -q` | ❌ W0 | ⬜ pending |
+| 03-01-T1 | 01 | 1 | AGT-05 | — | N/A | unit | `uv run pytest tests/test_memory.py -x -q` | TDD (self-creating) | ⬜ pending |
+| 03-01-T2 | 01 | 1 | AGT-06 | — | N/A | unit | `uv run pytest tests/test_memory.py -x -q` | TDD (self-creating) | ⬜ pending |
+| 03-02-T1 | 02 | 2 | AGT-03 | — | N/A | unit | `uv run pytest tests/test_cognition.py -x -q -k "perceive"` | TDD (self-creating) | ⬜ pending |
+| 03-02-T2 | 02 | 2 | AGT-02 | — | N/A | unit | `uv run pytest tests/test_cognition.py -x -q` | TDD (self-creating) | ⬜ pending |
+| 03-03-T1 | 03 | 3 | AGT-04 | — | N/A | unit | `uv run pytest tests/test_cognition.py -x -q -k "decide"` | TDD (extends) | ⬜ pending |
+| 03-03-T2 | 03 | 3 | AGT-07, AGT-08 | — | N/A | unit | `uv run pytest tests/test_cognition.py -x -q` | TDD (extends) | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+
+*Note: All tasks use TDD pattern — test files are created within the task before the verify step runs. No separate Wave 0 plan needed.*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `chromadb` + `sentence-transformers` — add via `uv add chromadb sentence-transformers`
-- [ ] `tests/test_memory.py` — stubs for AGT-05, AGT-06 (memory storage + retrieval)
-- [ ] `tests/test_cognition.py` — stubs for AGT-02, AGT-03, AGT-04, AGT-07, AGT-08
+- [x] `chromadb` + `sentence-transformers` — installed within Plan 01 Task 1 via `uv add`
+- [x] `tests/test_memory.py` — created within Plan 01 Task 1 (TDD self-creating)
+- [x] `tests/test_cognition.py` — created within Plan 02 Task 1 (TDD self-creating)
 
-*If none: "Existing infrastructure covers all phase requirements."*
+*Wave 0 resolved via TDD: each task creates its test files as part of execution before verify runs.*
 
 ---
 
@@ -68,11 +72,11 @@ created: 2026-04-09
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 5s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references (resolved via TDD self-creation)
+- [x] No watch-mode flags
+- [x] Feedback latency < 5s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-04-09

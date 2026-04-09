@@ -722,22 +722,13 @@ class Memory(BaseModel):
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **ChromaDB async client status in 0.6+**
-   - What we know: ChromaDB has an async client (`chromadb.AsyncClient`) that was experimental as of 0.5.
-   - What's unclear: Whether AsyncClient is stable enough in 0.6 to use directly instead of `asyncio.to_thread()` wrapping.
-   - Recommendation: Default to `asyncio.to_thread()` wrapping for safety; check ChromaDB changelog for 0.6 async client status before implementation.
+1. **ChromaDB async client status in 0.6+** — RESOLVED: Use `asyncio.to_thread()` wrapping for safety. Plans implement this in 03-01 Task 1 step 4. The sync client wrapped with to_thread is the proven pattern.
 
-2. **Conversation cooldown unit — simulated time vs. real time**
-   - What we know: Reference uses 60-minute simulated-time cooldown. Agent Town's simulation clock relationship to real time is not yet defined (Phase 4 concern).
-   - What's unclear: Whether to track cooldown in real-time seconds or simulated minutes.
-   - Recommendation: Use real-time seconds for the cooldown in Phase 3 (e.g., 60 seconds = no chat with same partner). Phase 4 can introduce simulated time tracking.
+2. **Conversation cooldown unit — simulated time vs. real time** — RESOLVED: Use real-time seconds (`COOLDOWN_SECONDS = 60`). Plans implement this in 03-03 Task 2. Phase 4 can introduce simulated time tracking later.
 
-3. **Event storage format on Tile._events**
-   - What we know: `Tile._events` is a dict in world.py, used in Phase 2 already. The key/value format is not yet defined.
-   - What's unclear: Whether the key is an event ID string or a tuple; what the value structure should be for perception.
-   - Recommendation: Define a `TileEvent` Pydantic model and document the dict format in Phase 3's perceive module. This is Claude's discretion.
+3. **Event storage format on Tile._events** — RESOLVED: perceive.py reads the existing `_events` dict directly as-is. No separate TileEvent Pydantic model needed for Phase 3. The dict format is Claude's discretion per CONTEXT.md.
 
 ---
 
