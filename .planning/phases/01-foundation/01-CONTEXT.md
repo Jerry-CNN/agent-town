@@ -13,10 +13,10 @@ Project scaffold with async infrastructure, LLM gateway (Ollama-only for v1), st
 <decisions>
 ## Implementation Decisions
 
-### LLM Provider (Simplified for v1)
-- **D-01:** v1 uses Ollama local-only. No API key configuration, no provider selection UI. Users must have Ollama running locally.
-- **D-02:** Default model is Llama 3.1 8B. App auto-detects Ollama availability on startup.
-- **D-03:** CFG-01 (provider config), CFG-02 (API key), and CFG-03 (cost estimation) are deferred to v2. Phase 1 requirements narrowed to: Ollama auto-detection, structured output, async infrastructure.
+### LLM Provider
+- **D-01:** v1 supports two providers: Ollama (local, free) and OpenRouter (cloud, requires API key). User chooses on first visit.
+- **D-02:** Default model is Llama 3.1 8B for Ollama, or a sensible default for OpenRouter (e.g., meta-llama/llama-3.1-8b-instruct:free or similar free-tier model).
+- **D-03:** CFG-01 (provider config) and CFG-02 (API key for OpenRouter) are in v1. CFG-03 (cost estimation) remains deferred to v2.
 
 ### App Shell Layout
 - **D-04:** Map-dominant layout. Tile map takes most of the screen. Activity feed in a collapsible right sidebar. Event input and controls (pause/resume) in a bottom bar below the map.

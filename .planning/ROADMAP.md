@@ -22,8 +22,8 @@
 
 ### Phase 1: Foundation
 
-**Goal:** The project runs end-to-end with async infrastructure, an Ollama-backed LLM gateway (v1 local-only), structured output validated by Pydantic with retry/fallback, and the frontend app shell with map-dominant layout.
-**Requirements:** INF-01, INF-02, INF-03
+**Goal:** The project runs end-to-end with async infrastructure, an LLM gateway supporting Ollama (local) and OpenRouter (cloud), provider config UI, structured output validated by Pydantic with retry/fallback, and the frontend app shell with map-dominant layout.
+**Requirements:** INF-01, INF-02, INF-03, CFG-01, CFG-02
 **UI hint:** yes
 **Depends on:** None
 
@@ -140,7 +140,7 @@ Plans:
 
 | # | Phase | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|-----------------|
-| 1 | Foundation | Async infra, LLM gateway (Ollama), app shell | INF-01, INF-02, INF-03 | 5 |
+| 1 | Foundation | Async infra, LLM gateway (Ollama + OpenRouter), provider config, app shell | INF-01, INF-02, INF-03, CFG-01, CFG-02 | 5 |
 | 2 | World & Navigation | Tile map, BFS pathfinding, agent data structures | MAP-03, MAP-04, AGT-01 | 4 |
 | 3 | Agent Cognition | Memory, planning, perception, LLM decisions, conversations | AGT-02, AGT-03, AGT-04, AGT-05, AGT-06, AGT-07, AGT-08 | 5 |
 | 4 | Simulation Engine & Transport | Real-time loop, WebSocket push, pause/resume | SIM-01, SIM-02, SIM-03 | 4 |
@@ -154,8 +154,8 @@ Plans:
 | INF-01 | Phase 1 |
 | INF-02 | Phase 1 |
 | INF-03 | Phase 1 |
-| CFG-01 | v2 (deferred) |
-| CFG-02 | v2 (deferred) |
+| CFG-01 | Phase 1 |
+| CFG-02 | Phase 1 |
 | CFG-03 | v2 (deferred) |
 | MAP-03 | Phase 2 |
 | MAP-04 | Phase 2 |
@@ -180,7 +180,7 @@ Plans:
 | EVT-03 | Phase 6 |
 | EVT-04 | Phase 6 |
 
-**Total mapped: 25/28 (3 deferred to v2: CFG-01, CFG-02, CFG-03)**
+**Total mapped: 27/28 (1 deferred to v2: CFG-03)**
 
 ## Progress
 

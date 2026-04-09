@@ -131,8 +131,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SIM-01 | Phase 4 | Pending |
 | SIM-02 | Phase 4 | Pending |
 | SIM-03 | Phase 4 | Pending |
-| CFG-01 | v2 (deferred) | Deferred |
-| CFG-02 | v2 (deferred) | Deferred |
+| CFG-01 | Phase 1 | Pending |
+| CFG-02 | Phase 1 | Pending |
 | CFG-03 | v2 (deferred) | Deferred |
 | DSP-01 | Phase 5 | Pending |
 | DSP-02 | Phase 5 | Pending |
