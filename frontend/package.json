@@ -1,0 +1,30 @@
+{
+  "name": "agent-town-frontend",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "test": "vitest run",
+    "lint": "biome check src/"
+  },
+  "dependencies": {
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "pixi.js": "^8.17.1",
+    "@pixi/react": "^8.0.5",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@biomejs/biome": "^2.4.11",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.8",
+    "vitest": "^4.1.4",
+    "@vitest/ui": "^4.1.4",
+    "jsdom": "^25.0.0",
+    "@testing-library/react": "^16.0.0"
+  }
+}
