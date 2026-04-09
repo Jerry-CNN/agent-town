@@ -91,3 +91,21 @@ async def test_config_endpoint_422_on_missing_openrouter_key(async_client):
         json={"provider": "openrouter"},
     )
     assert response.status_code == 422
+
+
+def test_resolve_model_returns_ollama_defaults():
+    """
+    D-02: When provider=ollama and api_key is None,
+    _resolve_model returns ("ollama_chat/llama3.1:8b", {"api_base": "http://localhost:11434"}).
+    Verifies default model routing without a real LLM call.
+    """
+    from backend.gateway import _resolve_model
+    from backend.schemas import ProviderConfig
+    from backend import config as cfg
+
+    provider_config = ProviderConfig(provider="ollama")
+    model_str, kwargs = _resolve_model(provider_config)
+
+    assert model_str == cfg.OLLAMA_DEFAULT_MODEL
+    assert model_str == "ollama_chat/llama3.1:8b"
+    assert kwargs == {"api_base": "http://localhost:11434"}
