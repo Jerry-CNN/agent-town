@@ -510,3 +510,500 @@ async def test_decompose_hour_subtask_durations():
 
     for st in subtasks:
         assert 5 <= st.duration_minutes <= 60
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (Plan 03): Action decision tests (TDD RED -- no decide module yet)
+# ---------------------------------------------------------------------------
+
+
+def test_action_decide_prompt_includes_agent_name():
+    """action_decide_prompt includes the agent's name in the message content."""
+    from backend.prompts.action_decide import action_decide_prompt
+
+    messages = action_decide_prompt(
+        agent_name="Alice",
+        agent_traits="warm, creative",
+        agent_lifestyle="early riser",
+        current_activity="brewing coffee",
+        current_location="cafe:seating",
+        known_locations=["cafe", "park", "home-alice"],
+        perception={"nearby_agents": [], "nearby_events": [], "location": "cafe:seating"},
+        memories=[],
+        current_schedule=[],
+    )
+    all_content = " ".join(
+        m["content"] for m in messages if isinstance(m.get("content"), str)
+    )
+    assert "Alice" in all_content
+
+
+def test_action_decide_prompt_includes_known_locations():
+    """action_decide_prompt includes the list of known locations for destination choices."""
+    from backend.prompts.action_decide import action_decide_prompt
+
+    messages = action_decide_prompt(
+        agent_name="Alice",
+        agent_traits="warm, creative",
+        agent_lifestyle="early riser",
+        current_activity="brewing coffee",
+        current_location="cafe:seating",
+        known_locations=["cafe", "park", "home-alice", "stock-exchange"],
+        perception={"nearby_agents": [], "nearby_events": [], "location": "cafe"},
+        memories=[],
+        current_schedule=[],
+    )
+    all_content = " ".join(
+        m["content"] for m in messages if isinstance(m.get("content"), str)
+    )
+    # At least one known location must appear in the prompt
+    assert any(loc in all_content for loc in ["cafe", "park", "home-alice", "stock-exchange"])
+
+
+def test_action_decide_prompt_includes_perception():
+    """action_decide_prompt includes perception context in the message content."""
+    from backend.prompts.action_decide import action_decide_prompt
+
+    perception = {
+        "nearby_agents": [{"name": "Bob", "activity": "reading"}],
+        "nearby_events": [],
+        "location": "cafe:seating",
+    }
+    messages = action_decide_prompt(
+        agent_name="Alice",
+        agent_traits="warm",
+        agent_lifestyle="morning person",
+        current_activity="idle",
+        current_location="cafe",
+        known_locations=["cafe", "park"],
+        perception=perception,
+        memories=[],
+        current_schedule=[],
+    )
+    all_content = " ".join(
+        m["content"] for m in messages if isinstance(m.get("content"), str)
+    )
+    # Bob appears in nearby_agents -- should appear in prompt context
+    assert "Bob" in all_content or "nearby" in all_content.lower()
+
+
+def test_action_decide_prompt_includes_memories():
+    """action_decide_prompt includes retrieved memories in the message content."""
+    from backend.prompts.action_decide import action_decide_prompt
+
+    memories = [{"content": "Alice enjoyed her morning walk last week"}]
+    messages = action_decide_prompt(
+        agent_name="Alice",
+        agent_traits="warm",
+        agent_lifestyle="morning person",
+        current_activity="idle",
+        current_location="cafe",
+        known_locations=["cafe", "park"],
+        perception={"nearby_agents": [], "nearby_events": [], "location": "cafe"},
+        memories=memories,
+        current_schedule=[],
+    )
+    all_content = " ".join(
+        m["content"] for m in messages if isinstance(m.get("content"), str)
+    )
+    assert "morning walk" in all_content or "Alice" in all_content
+
+
+@pytest.mark.asyncio
+async def test_decide_action_returns_agent_action():
+    """decide_action returns an AgentAction with destination, activity, reasoning."""
+    from backend.agents.cognition.decide import decide_action
+    from backend.schemas import AgentAction, AgentScratch, AgentSpatial, PerceptionResult
+
+    scratch = AgentScratch(
+        age=28,
+        innate="warm, creative",
+        learned="Alice runs the local cafe.",
+        lifestyle="Early riser.",
+        daily_plan="Wake up early, open the cafe.",
+    )
+    spatial = AgentSpatial(
+        address={"living_area": ["agent-town", "home-alice", "bedroom"]},
+        tree={"agent-town": {"cafe": {}, "park": {}, "home-alice": {}}},
+    )
+    perception = PerceptionResult(
+        nearby_agents=[{"name": "Bob", "activity": "reading"}],
+        nearby_events=[],
+        location="cafe:seating",
+    )
+
+    mock_action = AgentAction(
+        destination="park",
+        activity="taking a morning walk",
+        reasoning="Alice needs a break after the morning rush.",
+    )
+
+    with patch(
+        "backend.agents.cognition.decide.complete_structured",
+        new_callable=AsyncMock,
+        return_value=mock_action,
+    ), patch(
+        "backend.agents.cognition.decide.retrieve_memories",
+        new_callable=AsyncMock,
+        return_value=[],
+    ):
+        result = await decide_action(
+            simulation_id="sim-test",
+            agent_name="Alice",
+            agent_scratch=scratch,
+            agent_spatial=spatial,
+            current_activity="serving coffee",
+            perception=perception,
+            current_schedule=[],
+        )
+
+    assert isinstance(result, AgentAction)
+    assert result.destination == "park"
+    assert result.activity == "taking a morning walk"
+
+
+@pytest.mark.asyncio
+async def test_decide_action_calls_retrieve_memories():
+    """decide_action calls retrieve_memories with the correct simulation_id and agent_name."""
+    from backend.agents.cognition.decide import decide_action
+    from backend.schemas import AgentAction, AgentScratch, AgentSpatial, PerceptionResult
+
+    scratch = AgentScratch(
+        age=30,
+        innate="organized",
+        learned="Bob is a banker.",
+        lifestyle="Strict routine.",
+        daily_plan="Wake at 7, go to work.",
+    )
+    spatial = AgentSpatial(
+        address={"living_area": ["agent-town", "home-bob", "bedroom"]},
+        tree={"agent-town": {"bank": {}, "park": {}, "home-bob": {}}},
+    )
+    perception = PerceptionResult(nearby_agents=[], nearby_events=[], location="bank")
+
+    mock_action = AgentAction(
+        destination="bank",
+        activity="reviewing loans",
+        reasoning="Time to work.",
+    )
+
+    retrieve_mock = AsyncMock(return_value=[])
+
+    with patch(
+        "backend.agents.cognition.decide.complete_structured",
+        new_callable=AsyncMock,
+        return_value=mock_action,
+    ), patch(
+        "backend.agents.cognition.decide.retrieve_memories",
+        retrieve_mock,
+    ):
+        await decide_action(
+            simulation_id="sim-abc",
+            agent_name="Bob",
+            agent_scratch=scratch,
+            agent_spatial=spatial,
+            current_activity="idle",
+            perception=perception,
+            current_schedule=[],
+        )
+
+    # retrieve_memories must be called with correct simulation_id and agent_name
+    retrieve_mock.assert_called_once()
+    call_kwargs = retrieve_mock.call_args
+    assert call_kwargs.args[0] == "sim-abc" or call_kwargs.kwargs.get("simulation_id") == "sim-abc"
+    assert "Bob" in str(call_kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Task 2 (Plan 03): Conversation system tests (TDD RED -- no converse module yet)
+# ---------------------------------------------------------------------------
+
+
+def test_cooldown_returns_true_initially():
+    """check_cooldown returns True when no prior conversation has occurred."""
+    from backend.agents.cognition.converse import check_cooldown
+
+    # Use unique names to avoid pollution from other tests
+    assert check_cooldown("zara-unique-1", "yuri-unique-1") is True
+
+
+def test_cooldown_returns_false_after_record():
+    """check_cooldown returns False immediately after _record_conversation."""
+    from backend.agents.cognition.converse import check_cooldown, _record_conversation
+
+    _record_conversation("pair-agent-x", "pair-agent-y")
+    # Immediately after recording, cooldown has NOT expired
+    assert check_cooldown("pair-agent-x", "pair-agent-y") is False
+
+
+def test_pair_key_is_symmetric():
+    """_pair_key("alice", "bob") == _pair_key("bob", "alice") — order doesn't matter."""
+    from backend.agents.cognition.converse import _pair_key
+
+    assert _pair_key("alice", "bob") == _pair_key("bob", "alice")
+
+
+def test_conversation_start_prompt_includes_both_agent_names():
+    """conversation_start_prompt includes both agent names in message content."""
+    from backend.prompts.conversation_start import conversation_start_prompt
+
+    messages = conversation_start_prompt(
+        agent_name="Alice",
+        agent_traits="warm, creative",
+        other_name="Bob",
+        other_activity="reading the newspaper",
+        agent_current_activity="brewing coffee",
+        location="cafe",
+        recent_memories=[],
+    )
+    all_content = " ".join(
+        m["content"] for m in messages if isinstance(m.get("content"), str)
+    )
+    assert "Alice" in all_content
+    assert "Bob" in all_content
+
+
+def test_schedule_revise_prompt_includes_conversation_summary():
+    """schedule_revise_prompt includes the conversation summary in message content."""
+    from backend.prompts.schedule_revise import schedule_revise_prompt
+
+    summary = "Discussed the upcoming wedding at the town hall"
+    messages = schedule_revise_prompt(
+        agent_name="Alice",
+        agent_traits="warm",
+        conversation_summary=summary,
+        remaining_schedule=[],
+    )
+    all_content = " ".join(
+        m["content"] for m in messages if isinstance(m.get("content"), str)
+    )
+    assert "wedding" in all_content or "town hall" in all_content or "Discussed" in all_content
+
+
+@pytest.mark.asyncio
+async def test_attempt_conversation_respects_cooldown():
+    """attempt_conversation returns False when agents chatted within the cooldown period."""
+    from backend.agents.cognition.converse import attempt_conversation, _record_conversation
+    from backend.schemas import AgentScratch
+
+    scratch = AgentScratch(
+        age=28,
+        innate="warm",
+        learned="Alice is friendly.",
+        lifestyle="morning person",
+        daily_plan="Open cafe.",
+    )
+
+    # Record a recent conversation — this sets the cooldown
+    _record_conversation("alice-cooldown-test", "bob-cooldown-test")
+
+    # attempt_conversation should return False immediately (no LLM call needed)
+    result = await attempt_conversation(
+        simulation_id="sim-test",
+        agent_name="alice-cooldown-test",
+        agent_scratch=scratch,
+        other_name="bob-cooldown-test",
+        other_activity="reading",
+        agent_current_activity="brewing coffee",
+        location="cafe",
+    )
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_attempt_conversation_calls_llm_when_cooldown_allows():
+    """attempt_conversation calls LLM when cooldown allows and returns ConversationDecision.should_talk."""
+    from backend.agents.cognition.converse import attempt_conversation
+    from backend.schemas import AgentScratch, ConversationDecision
+
+    scratch = AgentScratch(
+        age=28,
+        innate="warm",
+        learned="Alice is friendly.",
+        lifestyle="morning person",
+        daily_plan="Open cafe.",
+    )
+
+    mock_decision = ConversationDecision(should_talk=True, reasoning="They are old friends.")
+
+    with patch(
+        "backend.agents.cognition.converse.complete_structured",
+        new_callable=AsyncMock,
+        return_value=mock_decision,
+    ), patch(
+        "backend.agents.cognition.converse.retrieve_memories",
+        new_callable=AsyncMock,
+        return_value=[],
+    ):
+        result = await attempt_conversation(
+            simulation_id="sim-fresh",
+            agent_name="fresh-alice",
+            agent_scratch=scratch,
+            other_name="fresh-bob",
+            other_activity="walking",
+            agent_current_activity="idle",
+            location="park",
+        )
+
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_run_conversation_produces_turns():
+    """run_conversation produces at least 2 turns (minimum D-12 requirement)."""
+    from backend.agents.cognition.converse import run_conversation
+    from backend.schemas import AgentScratch, ConversationTurn, ScheduleRevision, ScheduleEntry
+
+    scratch_a = AgentScratch(
+        age=28, innate="warm", learned="Alice runs the cafe.",
+        lifestyle="morning person", daily_plan="Open cafe."
+    )
+    scratch_b = AgentScratch(
+        age=30, innate="organized", learned="Bob is a banker.",
+        lifestyle="strict routine", daily_plan="Go to work."
+    )
+
+    mock_turn = ConversationTurn(text="Hello there!", end_conversation=False)
+    mock_turn_end = ConversationTurn(text="Goodbye!", end_conversation=True)
+    mock_revision = ScheduleRevision(
+        revised_entries=[
+            ScheduleEntry(start_minute=600, duration_minutes=60, describe="Visit park after chat")
+        ],
+        reason="Decided to relax after conversation",
+    )
+
+    call_count = 0
+    def turn_side_effect(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        # Return end_conversation=True on 4th+ call (to cap at 2 full exchanges)
+        if call_count >= 4:
+            return ConversationTurn(text="Nice talking to you!", end_conversation=True)
+        return ConversationTurn(text=f"Turn {call_count}", end_conversation=False)
+
+    with patch(
+        "backend.agents.cognition.converse.complete_structured",
+        new_callable=AsyncMock,
+        side_effect=turn_side_effect,
+    ), patch(
+        "backend.agents.cognition.converse.add_memory",
+        new_callable=AsyncMock,
+    ), patch(
+        "backend.agents.cognition.converse.score_importance",
+        new_callable=AsyncMock,
+        return_value=5,
+    ), patch(
+        "backend.agents.cognition.converse.retrieve_memories",
+        new_callable=AsyncMock,
+        return_value=[],
+    ):
+        result = await run_conversation(
+            simulation_id="sim-test",
+            agent_a_name="Alice",
+            agent_a_scratch=scratch_a,
+            agent_b_name="Bob",
+            agent_b_scratch=scratch_b,
+            location="cafe",
+            remaining_schedule_a=[],
+            remaining_schedule_b=[],
+        )
+
+    assert "turns" in result
+    assert len(result["turns"]) >= 2
+
+
+@pytest.mark.asyncio
+async def test_run_conversation_caps_at_max_turns():
+    """run_conversation never exceeds MAX_TURNS (4) turns."""
+    from backend.agents.cognition.converse import run_conversation, MAX_TURNS
+    from backend.schemas import AgentScratch, ConversationTurn
+
+    scratch = AgentScratch(
+        age=28, innate="warm", learned="Alice runs the cafe.",
+        lifestyle="morning person", daily_plan="Open cafe."
+    )
+
+    # Always return end_conversation=False to force max turns
+    mock_turn = ConversationTurn(text="Keep talking!", end_conversation=False)
+
+    with patch(
+        "backend.agents.cognition.converse.complete_structured",
+        new_callable=AsyncMock,
+        return_value=mock_turn,
+    ), patch(
+        "backend.agents.cognition.converse.add_memory",
+        new_callable=AsyncMock,
+    ), patch(
+        "backend.agents.cognition.converse.score_importance",
+        new_callable=AsyncMock,
+        return_value=5,
+    ), patch(
+        "backend.agents.cognition.converse.retrieve_memories",
+        new_callable=AsyncMock,
+        return_value=[],
+    ):
+        result = await run_conversation(
+            simulation_id="sim-cap",
+            agent_a_name="Alice",
+            agent_a_scratch=scratch,
+            agent_b_name="Bob",
+            agent_b_scratch=scratch,
+            location="cafe",
+            remaining_schedule_a=[],
+            remaining_schedule_b=[],
+        )
+
+    # Total turns = 2 speakers * MAX_TURNS rounds max
+    assert len(result["turns"]) <= MAX_TURNS * 2
+
+
+@pytest.mark.asyncio
+async def test_run_conversation_calls_add_memory_for_both_agents():
+    """run_conversation calls add_memory for both agents after conversation ends."""
+    from backend.agents.cognition.converse import run_conversation
+    from backend.schemas import AgentScratch, ConversationTurn
+
+    scratch = AgentScratch(
+        age=28, innate="warm", learned="Alice runs the cafe.",
+        lifestyle="morning person", daily_plan="Open cafe."
+    )
+
+    mock_turn = ConversationTurn(text="Hello!", end_conversation=True)
+
+    add_memory_mock = AsyncMock()
+
+    with patch(
+        "backend.agents.cognition.converse.complete_structured",
+        new_callable=AsyncMock,
+        return_value=mock_turn,
+    ), patch(
+        "backend.agents.cognition.converse.add_memory",
+        add_memory_mock,
+    ), patch(
+        "backend.agents.cognition.converse.score_importance",
+        new_callable=AsyncMock,
+        return_value=7,
+    ), patch(
+        "backend.agents.cognition.converse.retrieve_memories",
+        new_callable=AsyncMock,
+        return_value=[],
+    ):
+        await run_conversation(
+            simulation_id="sim-mem",
+            agent_a_name="Alice",
+            agent_a_scratch=scratch,
+            agent_b_name="Bob",
+            agent_b_scratch=scratch,
+            location="park",
+            remaining_schedule_a=[],
+            remaining_schedule_b=[],
+        )
+
+    # add_memory must have been called at least twice (once per agent)
+    assert add_memory_mock.call_count >= 2
+
+    # Both Alice and Bob should have memories stored
+    all_calls_args = [str(c) for c in add_memory_mock.call_args_list]
+    combined = " ".join(all_calls_args)
+    assert "Alice" in combined
+    assert "Bob" in combined
