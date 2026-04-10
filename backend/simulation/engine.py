@@ -291,6 +291,15 @@ class SimulationEngine:
                 )
 
                 if should_talk:
+                    # Snapshot both schedules before the await so we can detect
+                    # concurrent mutations that occurred while awaiting the LLM.
+                    # CR-01: because all agent steps run concurrently inside
+                    # asyncio.TaskGroup, agent B's step may mutate its own schedule
+                    # between the point we call run_conversation() and the point we
+                    # write back revised_b.  Compare against the pre-await snapshot
+                    # and only apply revised_b if agent B's schedule is unchanged.
+                    schedule_b_snapshot = list(other_state.schedule)
+
                     convo_result = await run_conversation(
                         simulation_id=self.simulation_id,
                         agent_a_name=agent_name,
@@ -299,7 +308,7 @@ class SimulationEngine:
                         agent_b_scratch=other_state.config.scratch,
                         location=perception.location,
                         remaining_schedule_a=list(state.schedule),
-                        remaining_schedule_b=list(other_state.schedule),
+                        remaining_schedule_b=schedule_b_snapshot,
                     )
 
                     # Update both agents' schedules with revised entries
@@ -307,8 +316,16 @@ class SimulationEngine:
                     revised_b = convo_result.get("revised_schedule_b", [])
                     if revised_a:
                         state.schedule = list(revised_a)
-                    if revised_b:
+                    # CR-01 guard: only apply revised_b if other agent's schedule
+                    # was not modified by a concurrent task during the await above.
+                    if revised_b and other_state.schedule == schedule_b_snapshot:
                         other_state.schedule = list(revised_b)
+                    elif revised_b:
+                        logger.debug(
+                            "Skipped revised schedule write-back for %s: "
+                            "schedule was concurrently modified during conversation await",
+                            other_name,
+                        )
 
                     await self._emit_conversation(convo_result)
                     return  # conversation tick: no decide call this tick
