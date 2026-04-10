@@ -872,11 +872,23 @@ async def test_run_conversation_produces_turns():
         reason="Decided to relax after conversation",
     )
 
+    mock_revision = ScheduleRevision(
+        revised_entries=[
+            ScheduleEntry(start_minute=600, duration_minutes=60, describe="Visit park after chat")
+        ],
+        reason="Decided to relax after conversation",
+    )
+
     call_count = 0
     def turn_side_effect(*args, **kwargs):
         nonlocal call_count
         call_count += 1
-        # Return end_conversation=True on 4th+ call (to cap at 2 full exchanges)
+        # Calls 1-4 are ConversationTurn; calls 5-6 are ScheduleRevision (for schedule revision)
+        # We detect by checking response_model in kwargs
+        response_model = kwargs.get("response_model")
+        if response_model is ScheduleRevision:
+            return mock_revision
+        # Return end_conversation=True on 4th+ call to cap at 2 full exchanges
         if call_count >= 4:
             return ConversationTurn(text="Nice talking to you!", end_conversation=True)
         return ConversationTurn(text=f"Turn {call_count}", end_conversation=False)
@@ -916,20 +928,28 @@ async def test_run_conversation_produces_turns():
 async def test_run_conversation_caps_at_max_turns():
     """run_conversation never exceeds MAX_TURNS (4) turns."""
     from backend.agents.cognition.converse import run_conversation, MAX_TURNS
-    from backend.schemas import AgentScratch, ConversationTurn
+    from backend.schemas import AgentScratch, ConversationTurn, ScheduleRevision, ScheduleEntry
 
     scratch = AgentScratch(
         age=28, innate="warm", learned="Alice runs the cafe.",
         lifestyle="morning person", daily_plan="Open cafe."
     )
 
-    # Always return end_conversation=False to force max turns
-    mock_turn = ConversationTurn(text="Keep talking!", end_conversation=False)
+    mock_revision = ScheduleRevision(
+        revised_entries=[ScheduleEntry(start_minute=600, duration_minutes=60, describe="Rest")],
+        reason="No changes needed",
+    )
+
+    def cap_side_effect(*args, **kwargs):
+        # Return ScheduleRevision when that model is requested; otherwise keep talking
+        if kwargs.get("response_model") is ScheduleRevision:
+            return mock_revision
+        return ConversationTurn(text="Keep talking!", end_conversation=False)
 
     with patch(
         "backend.agents.cognition.converse.complete_structured",
         new_callable=AsyncMock,
-        return_value=mock_turn,
+        side_effect=cap_side_effect,
     ), patch(
         "backend.agents.cognition.converse.add_memory",
         new_callable=AsyncMock,
@@ -961,21 +981,29 @@ async def test_run_conversation_caps_at_max_turns():
 async def test_run_conversation_calls_add_memory_for_both_agents():
     """run_conversation calls add_memory for both agents after conversation ends."""
     from backend.agents.cognition.converse import run_conversation
-    from backend.schemas import AgentScratch, ConversationTurn
+    from backend.schemas import AgentScratch, ConversationTurn, ScheduleRevision, ScheduleEntry
 
     scratch = AgentScratch(
         age=28, innate="warm", learned="Alice runs the cafe.",
         lifestyle="morning person", daily_plan="Open cafe."
     )
 
-    mock_turn = ConversationTurn(text="Hello!", end_conversation=True)
+    mock_revision = ScheduleRevision(
+        revised_entries=[ScheduleEntry(start_minute=600, duration_minutes=60, describe="Rest")],
+        reason="No changes",
+    )
+
+    def mem_side_effect(*args, **kwargs):
+        if kwargs.get("response_model") is ScheduleRevision:
+            return mock_revision
+        return ConversationTurn(text="Hello!", end_conversation=True)
 
     add_memory_mock = AsyncMock()
 
     with patch(
         "backend.agents.cognition.converse.complete_structured",
         new_callable=AsyncMock,
-        return_value=mock_turn,
+        side_effect=mem_side_effect,
     ), patch(
         "backend.agents.cognition.converse.add_memory",
         add_memory_mock,
