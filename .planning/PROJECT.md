@@ -14,11 +14,17 @@ Users can type any event and immediately see AI agents respond to it in a living
 
 - [x] Custom town map with thematic locations (stock exchange, wedding hall, park, homes, shops, etc.) — Validated in Phase 2: World & Navigation
 - [x] Agents have distinct personality traits, occupations, and daily routine templates — Validated in Phase 2: World & Navigation
+- [x] Agents autonomously plan daily schedules and decompose into sub-tasks — Validated in Phase 3: Agent Cognition
+- [x] Agents perceive nearby events and other agents within a vision radius — Validated in Phase 3: Agent Cognition
+- [x] Agents make LLM-powered decisions about what to do next based on perceptions and plans — Validated in Phase 3: Agent Cognition
+- [x] Memory system: agents remember experiences with recency/relevance/importance weighting — Validated in Phase 3: Agent Cognition
+- [x] Agents retrieve relevant memories when making decisions (composite scoring retrieval) — Validated in Phase 3: Agent Cognition
+- [x] Agents initiate multi-turn conversations with nearby agents based on context — Validated in Phase 3: Agent Cognition
+- [x] Conversations affect agent schedules (agents revise plans after chatting) — Validated in Phase 3: Agent Cognition
 
 ### Active
 
 - [ ] 2D tile-map town rendered in the browser with agents visible as sprites
-- [ ] Agents autonomously plan daily schedules, move between locations, and perform activities
 - [ ] Agents perceive nearby events and other agents, make LLM-powered decisions
 - [ ] Memory system: agents remember experiences with recency/relevance/importance weighting
 - [ ] Agents initiate conversations with each other based on proximity and context
@@ -98,4 +104,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-09 after Phase 2 completion*
+*Last updated: 2026-04-10 after Phase 3 completion*
