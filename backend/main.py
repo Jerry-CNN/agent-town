@@ -99,15 +99,15 @@ async def lifespan(app: FastAPI):
     # Generate a unique simulation ID for this run
     simulation_id = str(uuid.uuid4())
 
-    # Create SimulationEngine with maze, agents, and a unique run ID
+    # Create SimulationEngine with maze, agents, and a unique run ID.
+    # WR-03: broadcast_callback is passed as a constructor argument so the
+    # dependency is explicit and callers never write to the private attribute.
     engine = SimulationEngine(
         maze=maze,
         agents=agents,
         simulation_id=simulation_id,
+        broadcast_callback=_make_broadcast_callback(connection_manager),
     )
-
-    # Wire broadcast callback: engine -> ConnectionManager -> all WS clients
-    engine._broadcast_callback = _make_broadcast_callback(connection_manager)
 
     # Expose on app.state so ws.py and other routes can access them
     app.state.engine = engine

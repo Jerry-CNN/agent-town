@@ -89,13 +89,20 @@ class SimulationEngine:
         maze: Maze,
         agents: list[AgentConfig],
         simulation_id: str,
+        broadcast_callback: Callable | None = None,
     ) -> None:
         """Initialize the simulation engine (not yet running).
 
         Args:
-            maze:          The Maze instance providing tile data and pathfinding.
-            agents:        List of AgentConfig objects to simulate.
-            simulation_id: Unique identifier for this simulation run.
+            maze:               The Maze instance providing tile data and pathfinding.
+            agents:             List of AgentConfig objects to simulate.
+            simulation_id:      Unique identifier for this simulation run.
+            broadcast_callback: Optional async callable wired by the caller (e.g.
+                                main.py lifespan) to push updates to all connected
+                                WebSocket clients.  Passing it here as a constructor
+                                argument (WR-03) makes the dependency explicit and
+                                avoids external writes to the private ``_broadcast_callback``
+                                attribute after construction.
         """
         self.maze = maze
         self.simulation_id = simulation_id
@@ -108,9 +115,9 @@ class SimulationEngine:
         # Runtime state dict: agent_name -> AgentState
         self._agent_states: dict[str, AgentState] = {}
 
-        # Hook for Plan 02: ConnectionManager can attach its broadcast method here.
-        # If None, emit methods are no-ops.
-        self._broadcast_callback: Callable | None = None
+        # WR-03: Wired via constructor parameter so callers never need to write
+        # the private attribute directly.  If None, emit methods are no-ops.
+        self._broadcast_callback: Callable | None = broadcast_callback
 
         self._tick_count: int = 0
 
