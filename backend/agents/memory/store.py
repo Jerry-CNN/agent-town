@@ -97,6 +97,7 @@ async def score_importance(
     agent_name: str,
     agent_scratch: str,
     memory_text: str,
+    agent_lifestyle: str = "",
 ) -> int:
     """Assign an importance score (1-10) to a memory via LLM (D-03).
 
@@ -106,9 +107,11 @@ async def score_importance(
     Returns 5 (neutral) as a failsafe if all LLM retries are exhausted (Pitfall 5).
 
     Args:
-        agent_name:    Agent's display name for the prompt context.
-        agent_scratch: Agent personality/lifestyle string for the prompt context.
-        memory_text:   The memory text to score.
+        agent_name:      Agent's display name for the prompt context.
+        agent_scratch:   Agent innate personality/traits string for the prompt context.
+        memory_text:     The memory text to score.
+        agent_lifestyle: Agent lifestyle/habits string (sleep patterns, daily routine).
+                         Falls back to agent_scratch if not supplied.
 
     Returns:
         Integer importance score in [1, 10].
@@ -126,7 +129,7 @@ async def score_importance(
         messages = importance_score_prompt(
             agent_name=agent_name,
             agent_traits=agent_scratch,
-            agent_lifestyle=agent_scratch,
+            agent_lifestyle=agent_lifestyle or agent_scratch,
             memory_text=memory_text,
         )
         result: ImportanceScore = await complete_structured(

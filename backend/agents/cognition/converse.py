@@ -267,11 +267,13 @@ async def run_conversation(
         agent_name=agent_a_name,
         agent_scratch=agent_a_scratch.innate,
         memory_text=summary_a,
+        agent_lifestyle=agent_a_scratch.lifestyle,
     )
     importance_b = await score_importance(
         agent_name=agent_b_name,
         agent_scratch=agent_b_scratch.innate,
         memory_text=summary_b,
+        agent_lifestyle=agent_b_scratch.lifestyle,
     )
 
     await add_memory(
