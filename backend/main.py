@@ -9,7 +9,7 @@ import httpx
 from fastapi import FastAPI
 
 import backend.config as cfg
-from backend.routers import health, ws, llm
+from backend.routers import health, ws, llm, agents
 from backend.simulation.engine import SimulationEngine
 from backend.simulation.connection_manager import ConnectionManager
 from backend.simulation.map_generator import generate_town_map
@@ -148,3 +148,4 @@ app = FastAPI(
 app.include_router(health.router)          # GET /health
 app.include_router(ws.router)             # WebSocket /ws
 app.include_router(llm.router)            # POST /api/llm/test, POST /api/config
+app.include_router(agents.router)         # GET /api/agents/{name}/memories
