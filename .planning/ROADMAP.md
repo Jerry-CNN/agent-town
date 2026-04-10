@@ -155,8 +155,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — Backend event injection: extend WSMessage with inject_event type, SimulationEngine.inject_event() method storing high-importance memories, ws.py handler with validation, backend tests (Wave 1)
-- [ ] 06-02-PLAN.md — Frontend event UI: enable BottomBar input, broadcast/whisper toggle, whisper agent dropdown, inject_event WSMessage dispatch, frontend tests, human verification (Wave 2, depends on 01)
+- [x] 06-01-PLAN.md — Backend event injection: extend WSMessage with inject_event type, SimulationEngine.inject_event() method storing high-importance memories, ws.py handler with validation, backend tests (Wave 1)
+- [x] 06-02-PLAN.md — Frontend event UI: enable BottomBar input, broadcast/whisper toggle, whisper agent dropdown, inject_event WSMessage dispatch, frontend tests, human verification (Wave 2, depends on 01)
 
 ---
 
