@@ -278,6 +278,15 @@ class SimulationEngine:
                 other_activity = nearby.get("activity", "")
                 other_state = self._agent_states.get(other_name)
                 if other_state is None:
+                    # WR-02: Log data integrity issue — a perceived agent name is not
+                    # in _agent_states (stale perception or name mismatch).  Continue
+                    # to the next nearby agent rather than counting this as the one
+                    # conversation-check attempt for this tick.
+                    logger.warning(
+                        "Agent %s perceived unknown agent %s — name not in _agent_states, skipping",
+                        agent_name,
+                        other_name,
+                    )
                     continue
 
                 should_talk = await attempt_conversation(
