@@ -39,7 +39,8 @@ export type WSMessageType =
   | "pong"
   | "error"
   | "pause"
-  | "resume";
+  | "resume"
+  | "inject_event";
 
 export interface WSMessage {
   type: WSMessageType;
