@@ -117,6 +117,53 @@ async def websocket_endpoint(websocket: WebSocket):
                 )
                 await manager.broadcast(status_msg.model_dump_json())
 
+            elif message.type == "inject_event":
+                # Phase 6: User-injected event — store in agent memory streams
+                text = str(message.payload.get("text", "")).strip()
+                mode = str(message.payload.get("mode", "broadcast"))
+                target = message.payload.get("target")  # str | None
+                if target is not None:
+                    target = str(target)
+
+                # T-06-01: Reject empty or whitespace-only event text
+                if not text:
+                    error_msg = WSMessage(
+                        type="error",
+                        payload={"detail": "Event text is empty"},
+                        timestamp=time.time(),
+                    )
+                    await websocket.send_text(error_msg.model_dump_json())
+                    continue
+
+                # T-06-02: Validate mode is "broadcast" or "whisper"
+                if mode not in ("broadcast", "whisper"):
+                    error_msg = WSMessage(
+                        type="error",
+                        payload={"detail": f"Invalid mode: {mode}"},
+                        timestamp=time.time(),
+                    )
+                    await websocket.send_text(error_msg.model_dump_json())
+                    continue
+
+                # Inject event into agent memory streams (await — uses asyncio.to_thread)
+                await engine.inject_event(text=text, mode=mode, target=target)
+                logger.info(
+                    "Event injected: mode=%s target=%s text=%.80r",
+                    mode, target, text,
+                )
+
+                # D-09: Broadcast event confirmation to activity feed for all clients
+                if mode == "broadcast":
+                    label = f"Event broadcast: {text}"
+                else:
+                    label = f"Whispered to {target}: {text}"
+                event_msg = WSMessage(
+                    type="event",
+                    payload={"text": label},
+                    timestamp=time.time(),
+                )
+                await manager.broadcast(event_msg.model_dump_json())
+
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected")
     finally:
