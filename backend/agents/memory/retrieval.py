@@ -64,25 +64,24 @@ async def retrieve_memories(
     def _query() -> dict | None:
         col = get_collection(simulation_id)
 
-        # Check if collection has any documents for this agent to avoid ChromaDB
-        # error when n_results exceeds available count.
-        total = col.count()
-        if total == 0:
+        # Agent-scoped existence check: col.count() counts ALL agents in the collection,
+        # so use a filtered get() with limit=1 to test whether this specific agent has
+        # any memories. This prevents querying with n_results > agent's actual document
+        # count, which causes ChromaDB to error or return empty unexpectedly (WR-04 fix).
+        agent_check = col.get(where={"agent_id": agent_id}, limit=1)
+        if not agent_check["ids"]:
             return None
-
-        # Cap n_results to what's available (ChromaDB errors if n_results > count)
-        effective_n = min(n_results, total)
 
         try:
             results = col.query(
                 query_texts=[query],
-                n_results=effective_n,
+                n_results=n_results,
                 where={"agent_id": agent_id},
                 include=["documents", "metadatas", "distances", "ids"],
             )
             return results
         except Exception as exc:
-            # Catch "no embeddings" or "no results" gracefully — return empty.
+            # Catch "no embeddings", "n_results > count", or "no results" gracefully.
             logger.debug("ChromaDB query returned no results: %s", exc)
             return None
 
