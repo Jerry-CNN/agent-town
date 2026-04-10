@@ -1,10 +1,15 @@
 /**
  * Tests for upgraded ActivityFeed component with formatted entries.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { useSimulationStore } from "../store/simulationStore";
 import { ActivityFeed } from "../components/ActivityFeed";
+
+// jsdom does not implement scrollIntoView — mock it globally
+beforeAll(() => {
+  window.HTMLElement.prototype.scrollIntoView = vi.fn();
+});
 
 beforeEach(() => {
   useSimulationStore.getState().reset();
@@ -61,7 +66,6 @@ describe("ActivityFeed", () => {
     // The outer scrollable container should have overflow-y: auto
     const container = document.querySelector("[data-testid='feed-container']");
     expect(container).not.toBeNull();
-    const style = window.getComputedStyle(container!);
     // In jsdom, inline styles are accessible via element.style
     expect((container as HTMLElement).style.overflowY).toBe("auto");
   });
