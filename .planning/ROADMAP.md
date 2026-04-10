@@ -108,8 +108,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — SimulationEngine class: asyncio.TaskGroup concurrent tick loop, AgentState dataclass, perceive/decide/converse agent step, pause/resume via asyncio.Event, schedule generation on startup, exception isolation per agent (Wave 1)
-- [ ] 04-02-PLAN.md — WebSocket transport: ConnectionManager for multi-client broadcast, WSMessage schema expansion, snapshot-on-connect, pause/resume WS commands, FastAPI lifespan wiring, full integration tests (Wave 2, depends on 01)
+- [x] 04-01-PLAN.md — SimulationEngine class: asyncio.TaskGroup concurrent tick loop, AgentState dataclass, perceive/decide/converse agent step, pause/resume via asyncio.Event, schedule generation on startup, exception isolation per agent (Wave 1)
+- [x] 04-02-PLAN.md — WebSocket transport: ConnectionManager for multi-client broadcast, WSMessage schema expansion, snapshot-on-connect, pause/resume WS commands, FastAPI lifespan wiring, full integration tests (Wave 2, depends on 01)
 
 ---
 
