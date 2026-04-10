@@ -24,9 +24,10 @@ class WSMessage(BaseModel):
       error:             Invalid message or server-side error
 
     Inbound types (browser -> server):
-      pause:  Halt the simulation after current tick completes (D-08)
-      resume: Restart simulation from paused state (D-08)
-      ping:   Keepalive ping from browser
+      pause:        Halt the simulation after current tick completes (D-08)
+      resume:       Restart simulation from paused state (D-08)
+      ping:         Keepalive ping from browser
+      inject_event: Inject a user event into agent memory streams (Phase 6)
     """
     type: Literal[
         "agent_update",       # D-06: position + activity change
@@ -39,6 +40,7 @@ class WSMessage(BaseModel):
         "error",              # invalid message or server error
         "pause",              # D-08: incoming command — pause simulation
         "resume",             # D-08: incoming command — resume simulation
+        "inject_event",       # Phase 6: inbound command — inject user event into agent memories
     ]
     payload: dict
     timestamp: float

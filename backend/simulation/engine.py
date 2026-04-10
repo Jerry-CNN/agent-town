@@ -414,6 +414,47 @@ class SimulationEngine:
                 "summary": conversation_result.get("summary", ""),
             })
 
+    async def inject_event(self, text: str, mode: str, target: str | None = None) -> None:
+        """Inject a user event into agent memory streams (Phase 6).
+
+        Broadcast: stores high-importance memory in ALL agents' streams.
+        Whisper:   stores high-importance memory ONLY in the named target agent's stream.
+
+        Hardcodes importance=8 (per research recommendation D-05/D-06) — injected events
+        are user-initiated and inherently significant; skipping score_importance() saves
+        one LLM call per agent per event injection.
+
+        Text is truncated to 500 chars before storage (T-06-03 DoS mitigation).
+
+        Args:
+            text:   The event text to inject. Caller is responsible for non-empty
+                    validation (ws.py guards upstream). Truncated to 500 chars here.
+            mode:   "broadcast" (all agents) or "whisper" (single named target).
+            target: Agent name for whisper mode. Ignored for broadcast. Must be a
+                    key in self._agent_states; unknown names are logged and rejected.
+        """
+        # T-06-03: Truncate to 500 chars to prevent oversized ChromaDB documents
+        text = text[:500]
+
+        if mode == "broadcast":
+            targets = list(self._agent_states.keys())
+        elif mode == "whisper" and target and target in self._agent_states:
+            targets = [target]
+        else:
+            logger.warning(
+                "inject_event: invalid mode=%s or unknown target=%s", mode, target
+            )
+            return
+
+        for agent_name in targets:
+            await add_memory(
+                simulation_id=self.simulation_id,
+                agent_id=agent_name,
+                content=f"Event: {text}",
+                memory_type="event",
+                importance=8,
+            )
+
     def pause(self) -> None:
         """Pause the simulation — blocks the tick loop at the next Event.wait().
 
