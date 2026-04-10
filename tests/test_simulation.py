@@ -531,45 +531,80 @@ async def test_connection_manager_dead_connection():
     assert received_good == ["data"], "Good WS should still receive the message"
 
 
-@pytest.mark.asyncio
-async def test_ws_snapshot_on_connect():
+def _make_lifespan_patches(mock_engine):
+    """Return a context manager that patches all lifespan dependencies.
+
+    Patches load_all_agents, generate_town_map, Maze, reset_simulation,
+    generate_daily_schedule, add_memory, and SimulationEngine so the real
+    lifespan can run without disk access or LLM calls, and app.state.engine
+    is set to the provided mock_engine.
+    """
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from backend.simulation.connection_manager import ConnectionManager
+
+    mock_agent = _make_agent_config("Alice", (5, 5))
+    mock_manager = ConnectionManager()
+
+    # We'll inject our mock engine into lifespan by replacing SimulationEngine
+    # constructor with a factory that returns our mock
+    class MockEngineFactory:
+        def __new__(cls, *args, **kwargs):
+            return mock_engine
+
+    patches = [
+        patch("backend.main.load_all_agents", return_value=[mock_agent]),
+        patch("backend.main.generate_town_map", return_value={
+            "world": "test",
+            "tile_size": 32,
+            "size": [10, 10],
+            "tile_address_keys": ["world", "sector", "arena"],
+            "tiles": [],
+        }),
+        patch("backend.main.Maze", return_value=_make_small_maze()),
+        patch("backend.main.SimulationEngine", MockEngineFactory),
+        patch("backend.simulation.engine.reset_simulation", new_callable=AsyncMock),
+        patch("backend.simulation.engine.generate_daily_schedule", new_callable=AsyncMock, return_value=[]),
+        patch("backend.simulation.engine.add_memory", new_callable=AsyncMock),
+    ]
+    return patches
+
+
+def test_ws_snapshot_on_connect():
     """First message received by a new WebSocket client is type='snapshot'."""
     import json
-    from httpx import AsyncClient, ASGITransport
+    import time
+    from unittest.mock import MagicMock, AsyncMock, patch
+    from starlette.testclient import TestClient
     from backend.main import app
-    from unittest.mock import MagicMock
 
-    # Mock engine on app.state
     mock_engine = MagicMock()
     mock_engine.get_snapshot.return_value = {
         "agents": [{"name": "Alice", "coord": [5, 5], "activity": "walking"}],
         "simulation_status": "running",
         "tick_count": 0,
     }
-    app.state.engine = mock_engine
+    mock_engine.initialize = AsyncMock()
+    mock_engine.run = AsyncMock()
+    mock_engine._broadcast_callback = None
 
-    # Mock connection_manager on app.state
-    from backend.simulation.connection_manager import ConnectionManager
-    mock_manager = ConnectionManager()
-    app.state.connection_manager = mock_manager
-
-    from starlette.testclient import TestClient
-    with TestClient(app) as client:
-        with client.websocket_connect("/ws") as ws:
-            first_message = ws.receive_text()
-            data = json.loads(first_message)
-            assert data["type"] == "snapshot", f"Expected 'snapshot', got {data['type']}"
-            assert "agents" in data["payload"], "Snapshot payload should contain agents"
-            assert "simulation_status" in data["payload"], "Snapshot payload should contain simulation_status"
+    patches = _make_lifespan_patches(mock_engine)
+    with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with TestClient(app) as client:
+            with client.websocket_connect("/ws") as ws:
+                first_message = ws.receive_text()
+                data = json.loads(first_message)
+                assert data["type"] == "snapshot", f"Expected 'snapshot', got {data['type']}"
+                assert "agents" in data["payload"], "Snapshot payload should contain agents"
+                assert "simulation_status" in data["payload"], "Snapshot payload should contain simulation_status"
 
 
-@pytest.mark.asyncio
-async def test_ws_pause_command():
+def test_ws_pause_command():
     """Sending a pause WSMessage via WebSocket calls engine.pause()."""
     import json
+    import time
+    from unittest.mock import MagicMock, AsyncMock
+    from starlette.testclient import TestClient
     from backend.main import app
-    from unittest.mock import MagicMock
-    from backend.simulation.connection_manager import ConnectionManager
 
     mock_engine = MagicMock()
     mock_engine.get_snapshot.return_value = {
@@ -577,34 +612,29 @@ async def test_ws_pause_command():
         "simulation_status": "running",
         "tick_count": 0,
     }
-    mock_engine._running = MagicMock()
-    mock_engine._running.is_set.return_value = False  # After pause
-    app.state.engine = mock_engine
-    app.state.connection_manager = ConnectionManager()
+    mock_engine.initialize = AsyncMock()
+    mock_engine.run = AsyncMock()
+    mock_engine._broadcast_callback = None
 
-    import time
     pause_msg = json.dumps({"type": "pause", "payload": {}, "timestamp": time.time()})
 
-    from starlette.testclient import TestClient
-    with TestClient(app) as client:
-        with client.websocket_connect("/ws") as ws:
-            ws.receive_text()  # Consume snapshot
-            ws.send_text(pause_msg)
-            # Give the server a moment to process
-            import time as t
-            t.sleep(0.1)
+    patches = _make_lifespan_patches(mock_engine)
+    with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with TestClient(app) as client:
+            with client.websocket_connect("/ws") as ws:
+                ws.receive_text()  # Consume snapshot
+                ws.send_text(pause_msg)
 
     mock_engine.pause.assert_called_once()
 
 
-@pytest.mark.asyncio
-async def test_ws_resume_command():
+def test_ws_resume_command():
     """Sending a resume WSMessage via WebSocket calls engine.resume()."""
     import json
     import time
+    from unittest.mock import MagicMock, AsyncMock
+    from starlette.testclient import TestClient
     from backend.main import app
-    from unittest.mock import MagicMock
-    from backend.simulation.connection_manager import ConnectionManager
 
     mock_engine = MagicMock()
     mock_engine.get_snapshot.return_value = {
@@ -612,20 +642,18 @@ async def test_ws_resume_command():
         "simulation_status": "paused",
         "tick_count": 0,
     }
-    mock_engine._running = MagicMock()
-    mock_engine._running.is_set.return_value = True  # After resume
-    app.state.engine = mock_engine
-    app.state.connection_manager = ConnectionManager()
+    mock_engine.initialize = AsyncMock()
+    mock_engine.run = AsyncMock()
+    mock_engine._broadcast_callback = None
 
     resume_msg = json.dumps({"type": "resume", "payload": {}, "timestamp": time.time()})
 
-    from starlette.testclient import TestClient
-    with TestClient(app) as client:
-        with client.websocket_connect("/ws") as ws:
-            ws.receive_text()  # Consume snapshot
-            ws.send_text(resume_msg)
-            import time as t
-            t.sleep(0.1)
+    patches = _make_lifespan_patches(mock_engine)
+    with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        with TestClient(app) as client:
+            with client.websocket_connect("/ws") as ws:
+                ws.receive_text()  # Consume snapshot
+                ws.send_text(resume_msg)
 
     mock_engine.resume.assert_called_once()
 
@@ -662,3 +690,157 @@ async def test_broadcast_reaches_all_clients():
         import json
         data = json.loads(raw)
         assert data["type"] == "agent_update"
+
+
+# ---------------------------------------------------------------------------
+# Task 2 (Plan 02): Lifespan wiring and full lifecycle integration tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_full_lifecycle():
+    """Integration: initialize engine, verify schedules, snapshot, pause/resume."""
+    from unittest.mock import AsyncMock, patch
+    from backend.simulation.engine import SimulationEngine, AgentState
+    from backend.simulation.connection_manager import ConnectionManager
+    from backend.schemas import ScheduleEntry
+
+    maze = _make_small_maze()
+    configs = [
+        _make_agent_config("Alice", (5, 5)),
+        _make_agent_config("Bob", (3, 3)),
+    ]
+
+    mock_schedule = [
+        ScheduleEntry(start_minute=420, duration_minutes=60, describe="wake up"),
+        ScheduleEntry(start_minute=480, duration_minutes=60, describe="breakfast"),
+        ScheduleEntry(start_minute=540, duration_minutes=60, describe="work"),
+    ]
+
+    with (
+        patch("backend.simulation.engine.reset_simulation", new_callable=AsyncMock),
+        patch("backend.simulation.engine.generate_daily_schedule", new_callable=AsyncMock, return_value=mock_schedule),
+        patch("backend.simulation.engine.add_memory", new_callable=AsyncMock),
+    ):
+        engine = SimulationEngine(maze=maze, agents=configs, simulation_id="test-lifecycle")
+
+        # Create and wire ConnectionManager
+        manager = ConnectionManager()
+        broadcast_received = []
+
+        async def fake_callback(data: dict) -> None:
+            broadcast_received.append(data)
+
+        engine._broadcast_callback = fake_callback
+
+        # Initialize — generates schedules for both agents
+        await engine.initialize()
+
+        # Both agents should have schedules
+        assert len(engine._agent_states["Alice"].schedule) == 3, "Alice should have 3 schedule entries"
+        assert len(engine._agent_states["Bob"].schedule) == 3, "Bob should have 3 schedule entries"
+
+        # Both agents should have initial coords
+        assert engine._agent_states["Alice"].coord == (5, 5)
+        assert engine._agent_states["Bob"].coord == (3, 3)
+
+        # get_snapshot should return 2 agents with correct data
+        snapshot = engine.get_snapshot()
+        assert len(snapshot["agents"]) == 2
+        agent_names = {a["name"] for a in snapshot["agents"]}
+        assert "Alice" in agent_names
+        assert "Bob" in agent_names
+
+        # Engine starts paused (before run())
+        assert snapshot["simulation_status"] == "paused"
+
+        # Pause/resume cycle
+        engine.resume()
+        assert engine._running.is_set(), "Engine should be running after resume()"
+
+        engine.pause()
+        assert not engine._running.is_set(), "Engine should be paused after pause()"
+
+        # get_snapshot reflects paused state
+        snapshot2 = engine.get_snapshot()
+        assert snapshot2["simulation_status"] == "paused"
+
+        # Resume again
+        engine.resume()
+        snapshot3 = engine.get_snapshot()
+        assert snapshot3["simulation_status"] == "running"
+
+
+@pytest.mark.asyncio
+async def test_broadcast_callback_integration():
+    """Engine._emit_agent_update calls the wired broadcast callback correctly."""
+    from unittest.mock import AsyncMock, patch
+    from backend.simulation.engine import SimulationEngine, AgentState
+    from backend.main import _make_broadcast_callback
+    from backend.simulation.connection_manager import ConnectionManager
+    import json
+
+    maze = _make_small_maze()
+    cfg = _make_agent_config("Alice", (5, 5))
+    engine = SimulationEngine(maze=maze, agents=[cfg], simulation_id="test-callback")
+
+    manager = ConnectionManager()
+    broadcast_messages = []
+
+    class CapturingWS:
+        async def send_text(self, text):
+            broadcast_messages.append(json.loads(text))
+
+    manager.active_connections = [CapturingWS()]
+    engine._broadcast_callback = _make_broadcast_callback(manager)
+
+    # Pre-populate agent state
+    engine._agent_states["Alice"] = AgentState(
+        name="Alice",
+        config=cfg,
+        coord=(5, 5),
+        path=[],
+        current_activity="walking",
+        schedule=[],
+    )
+
+    # Directly call the emit method to trigger the broadcast callback
+    await engine._emit_agent_update("Alice", engine._agent_states["Alice"])
+
+    assert len(broadcast_messages) == 1, f"Expected 1 broadcast message, got {len(broadcast_messages)}"
+    msg = broadcast_messages[0]
+    assert msg["type"] == "agent_update"
+    assert msg["payload"]["name"] == "Alice"
+    assert msg["payload"]["coord"] == [5, 5]
+
+
+def test_lifespan_creates_engine():
+    """After app startup via lifespan, app.state.engine and connection_manager exist."""
+    from unittest.mock import MagicMock, AsyncMock, patch
+    from starlette.testclient import TestClient
+    from backend.simulation.engine import SimulationEngine
+    from backend.simulation.connection_manager import ConnectionManager
+
+    mock_agent = _make_agent_config("Alice", (5, 5))
+
+    # Use the same _make_lifespan_patches pattern — inject a real-ish mock engine
+    mock_engine = MagicMock(spec=SimulationEngine)
+    mock_engine.initialize = AsyncMock()
+    mock_engine.run = AsyncMock()
+    mock_engine._broadcast_callback = None
+    mock_engine.get_snapshot.return_value = {
+        "agents": [], "simulation_status": "running", "tick_count": 0
+    }
+
+    patches = _make_lifespan_patches(mock_engine)
+    with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
+        from backend.main import app
+        with TestClient(app) as client:
+            # App lifespan has run — verify state was set
+            assert hasattr(app.state, "engine"), "app.state.engine should be set by lifespan"
+            assert hasattr(app.state, "connection_manager"), "app.state.connection_manager should be set by lifespan"
+            # engine is our mock (wrapped by MockEngineFactory in _make_lifespan_patches)
+            assert app.state.engine is mock_engine, "app.state.engine should be the mock engine"
+            assert isinstance(app.state.connection_manager, ConnectionManager)
+            # initialize() must have been called
+            mock_engine.initialize.assert_called_once()
