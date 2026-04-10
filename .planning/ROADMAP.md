@@ -105,7 +105,11 @@ Plans:
 3. A WebSocket client connected in the browser receives a stream of JSON events and can reconstruct current agent positions and activities from that stream alone.
 4. Pressing pause halts all agent processing within one tick; pressing resume restarts all agents from their paused state without data loss.
 
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — SimulationEngine class: asyncio.TaskGroup concurrent tick loop, AgentState dataclass, perceive/decide/converse agent step, pause/resume via asyncio.Event, schedule generation on startup, exception isolation per agent (Wave 1)
+- [ ] 04-02-PLAN.md — WebSocket transport: ConnectionManager for multi-client broadcast, WSMessage schema expansion, snapshot-on-connect, pause/resume WS commands, FastAPI lifespan wiring, full integration tests (Wave 2, depends on 01)
 
 ---
 
@@ -197,8 +201,8 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 0/3 | Not started | - |
-| 2. World & Navigation | 0/2 | Not started | - |
+| 2. World & Navigation | 0/3 | Not started | - |
 | 3. Agent Cognition | 0/3 | Not started | - |
-| 4. Simulation Engine & Transport | 0/? | Not started | - |
+| 4. Simulation Engine & Transport | 0/2 | Not started | - |
 | 5. Frontend | 0/? | Not started | - |
 | 6. Event Injection | 0/? | Not started | - |
