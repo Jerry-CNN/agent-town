@@ -68,16 +68,20 @@ async def retrieve_memories(
         # so use a filtered get() with limit=1 to test whether this specific agent has
         # any memories. This prevents querying with n_results > agent's actual document
         # count, which causes ChromaDB to error or return empty unexpectedly (WR-04 fix).
-        agent_check = col.get(where={"agent_id": agent_id}, limit=1)
-        if not agent_check["ids"]:
+        agent_docs = col.get(where={"agent_id": agent_id})
+        agent_count = len(agent_docs["ids"]) if agent_docs["ids"] else 0
+        if agent_count == 0:
             return None
+
+        # Clamp n_results to agent's actual document count to avoid ChromaDB errors
+        clamped = min(n_results, agent_count)
 
         try:
             results = col.query(
                 query_texts=[query],
-                n_results=n_results,
+                n_results=clamped,
                 where={"agent_id": agent_id},
-                include=["documents", "metadatas", "distances", "ids"],
+                include=["documents", "metadatas", "distances"],
             )
             return results
         except Exception as exc:

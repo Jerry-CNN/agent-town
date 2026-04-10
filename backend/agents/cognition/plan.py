@@ -58,7 +58,7 @@ async def generate_daily_schedule(
     daily_schedule: DailySchedule = await complete_structured(
         messages=messages,
         response_model=DailySchedule,
-        fallback=DailySchedule(activities=["rest at home"], wake_hour=7),
+        fallback=DailySchedule(activities=["rest at home", "rest at home", "rest at home"], wake_hour=7),
     )
 
     # Convert activity list to ScheduleEntry objects.
