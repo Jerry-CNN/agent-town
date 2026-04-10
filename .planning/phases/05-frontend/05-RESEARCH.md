@@ -521,22 +521,13 @@ const handlePauseResume = () => {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Pause/Resume WebSocket send from BottomBar**
-   - What we know: BottomBar.tsx calls `setPaused(!isPaused)` (local state only). Backend expects `pause`/`resume` WSMessage. The WebSocket hook exposes no `sendMessage` method.
-   - What's unclear: Should `useWebSocket` expose `sendMessage`, or should a separate hook/store action hold the WebSocket ref?
-   - Recommendation: Add `sendMessage(msg: WSMessage) => void` return value to `useWebSocket`. Store it in Zustand as a ref (not state) so components can call it without re-render.
+1. **Pause/Resume WebSocket send from BottomBar** — RESOLVED: Plan 05-01 Task 2 stores sendMessage as a module-level ref in useWebSocket.ts. BottomBar.tsx calls getSendMessage() to dispatch pause/resume WSMessages to the backend.
 
-2. **Agent personality data in Zustand store**
-   - What we know: `AgentState.personality` in `types/index.ts` is `string[]`, but the snapshot payload only contains `{name, coord, activity}`. Inspector (D-09) needs `innate`, `occupation`, `age` from `AgentConfig.scratch`.
-   - What's unclear: Should personality data come via the snapshot (extend it), a separate REST endpoint, or be bundled into the inspector's memory endpoint response?
-   - Recommendation: Extend the snapshot payload to include personality fields (innate, occupation from the `currently` field). The engine `get_snapshot()` already has access to `AgentConfig` — add scratch fields to each agent's snapshot entry.
+2. **Agent personality data in Zustand store** — RESOLVED: Plan 05-01 Task 1 adds occupation, innate, age, currentLocation fields to AgentState with optional fields on SnapshotAgent type. Snapshot payload extended to include personality data.
 
-3. **Sector address structure — world prefix**
-   - What we know: Town.json tile addresses are `["park", "garden"]` not `["agent-town", "park", "garden"]`. The `tile_address_keys` are `["world", "sector", "arena"]` but actual tile records omit the world level.
-   - What's unclear: This is inconsistent with the keys definition. The frontend must handle both formats or assume 2-element addresses.
-   - Recommendation: When building zone bounding boxes, use `address[0]` as sector (confirmed: yields "park", "cafe", etc.). No world prefix in practice.
+3. **Sector address structure — world prefix** — RESOLVED: Plan 05-02 Task 2 uses address[0] as sector name. Frontend reads 2-element addresses directly from town.json tiles, no world prefix handling needed.
 
 ---
 
