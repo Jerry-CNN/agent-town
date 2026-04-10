@@ -58,6 +58,7 @@ async def generate_daily_schedule(
     daily_schedule: DailySchedule = await complete_structured(
         messages=messages,
         response_model=DailySchedule,
+        fallback=DailySchedule(activities=["rest at home"], wake_hour=7),
     )
 
     # Convert activity list to ScheduleEntry objects.
@@ -104,6 +105,15 @@ async def decompose_hour(
     result = await complete_structured(
         messages=messages,
         response_model=_SubTaskList,
+        fallback=_SubTaskList(
+            subtasks=[
+                SubTask(
+                    start_minute=entry.start_minute,
+                    duration_minutes=entry.duration_minutes,
+                    describe=entry.describe,
+                )
+            ]
+        ),
     )
 
     # Handle both the case where result is already a list (mock) and where it's _SubTaskList

@@ -51,13 +51,18 @@ async def complete_structured(
     response_model: Type[T],
     provider_config: ProviderConfig | None = None,
     max_retries: int = 3,
+    fallback: T | None = None,
 ) -> T:
     """
     Make an async LLM call and return a validated Pydantic model.
 
     Uses instructor for automatic retry on validation failure (INF-03).
-    Returns a fallback value if all retries fail — never raises (D-06).
     Max retries are bounded to prevent denial-of-service (T-01-03).
+
+    If all retries are exhausted:
+    - Returns `fallback` if provided (caller-supplied safe value).
+    - Returns FALLBACK_AGENT_ACTION if response_model is AgentAction (D-06).
+    - Raises the last exception otherwise — callers must handle or supply a fallback.
     """
     if provider_config is None:
         provider_config = ProviderConfig(
@@ -88,9 +93,11 @@ async def complete_structured(
                 type(exc).__name__,
             )
 
-    # All retries exhausted — return type-safe fallback (T-01-03, D-06)
+    # All retries exhausted — return type-safe fallback or raise (T-01-03, D-06)
     # T-01-02: never include api_key in log messages
     logger.warning("LLM call failed after %d retries", max_retries)
+    if fallback is not None:
+        return fallback
     if response_model is AgentAction:
         return FALLBACK_AGENT_ACTION  # type: ignore[return-value]
     if last_exc is not None:

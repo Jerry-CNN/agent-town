@@ -155,6 +155,7 @@ async def attempt_conversation(
     result: ConversationDecision = await complete_structured(
         messages=messages,
         response_model=ConversationDecision,
+        fallback=ConversationDecision(should_talk=False, reasoning="LLM unavailable"),
     )
 
     return result.should_talk
@@ -219,6 +220,7 @@ async def run_conversation(
         turn_a: ConversationTurn = await complete_structured(
             messages=messages_a,
             response_model=ConversationTurn,
+            fallback=ConversationTurn(text="...", end_conversation=True),
         )
         conversation_log.append({"speaker": agent_a_name, "text": turn_a.text})
 
@@ -239,6 +241,7 @@ async def run_conversation(
         turn_b: ConversationTurn = await complete_structured(
             messages=messages_b,
             response_model=ConversationTurn,
+            fallback=ConversationTurn(text="...", end_conversation=True),
         )
         conversation_log.append({"speaker": agent_b_name, "text": turn_b.text})
 
@@ -313,10 +316,12 @@ async def run_conversation(
     revision_a: ScheduleRevision = await complete_structured(
         messages=messages_revise_a,
         response_model=ScheduleRevision,
+        fallback=ScheduleRevision(revised_entries=remaining_schedule_a, reason="LLM unavailable"),
     )
     revision_b: ScheduleRevision = await complete_structured(
         messages=messages_revise_b,
         response_model=ScheduleRevision,
+        fallback=ScheduleRevision(revised_entries=remaining_schedule_b, reason="LLM unavailable"),
     )
 
     return {
