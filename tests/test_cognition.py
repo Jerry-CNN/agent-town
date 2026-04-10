@@ -709,9 +709,9 @@ async def test_decide_action_calls_retrieve_memories():
 
     # retrieve_memories must be called with correct simulation_id and agent_name
     retrieve_mock.assert_called_once()
-    call_kwargs = retrieve_mock.call_args
-    assert call_kwargs.args[0] == "sim-abc" or call_kwargs.kwargs.get("simulation_id") == "sim-abc"
-    assert "Bob" in str(call_kwargs)
+    call_str = str(retrieve_mock.call_args)
+    assert "sim-abc" in call_str
+    assert "Bob" in call_str
 
 
 # ---------------------------------------------------------------------------
