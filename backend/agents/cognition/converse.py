@@ -292,15 +292,24 @@ async def run_conversation(
     )
 
     # --- Schedule revision (D-10, D-13): each agent revises remaining schedule ---
-    # Format remaining schedules as dicts for the prompt
-    schedule_a_dicts = [
-        {"describe": e.describe} if hasattr(e, "describe") else e
-        for e in remaining_schedule_a
-    ]
-    schedule_b_dicts = [
-        {"describe": e.describe} if hasattr(e, "describe") else e
-        for e in remaining_schedule_b
-    ]
+    # Format remaining schedules as dicts for the prompt.
+    # Only include entries with a valid "describe" field — skip malformed dicts that
+    # lack it to avoid passing raw dict reprs like "{'start_minute': 720}" into the LLM.
+    schedule_a_dicts = []
+    for e in remaining_schedule_a:
+        if hasattr(e, "describe"):
+            schedule_a_dicts.append({"describe": e.describe})
+        elif isinstance(e, dict) and "describe" in e:
+            schedule_a_dicts.append({"describe": e["describe"]})
+        # else: silently skip malformed entries without a describe field
+
+    schedule_b_dicts = []
+    for e in remaining_schedule_b:
+        if hasattr(e, "describe"):
+            schedule_b_dicts.append({"describe": e.describe})
+        elif isinstance(e, dict) and "describe" in e:
+            schedule_b_dicts.append({"describe": e["describe"]})
+        # else: silently skip malformed entries without a describe field
 
     messages_revise_a = schedule_revise_prompt(
         agent_name=agent_a_name,
