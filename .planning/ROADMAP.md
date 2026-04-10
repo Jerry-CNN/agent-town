@@ -85,9 +85,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — ChromaDB memory stream with async wrappers, composite-scored retrieval, LLM importance scoring, all Phase 3 Pydantic v2 cognition schemas (Wave 1)
-- [ ] 03-02-PLAN.md — Tile-grid perception scan within radius, two-level daily schedule generation via LLM with hourly blocks and sub-task decomposition (Wave 2)
-- [ ] 03-03-PLAN.md — LLM-powered action decisions from perception+memory context, multi-turn conversation system with cooldown, post-conversation schedule revision (Wave 3)
+- [x] 03-01-PLAN.md — ChromaDB memory stream with async wrappers, composite-scored retrieval, LLM importance scoring, all Phase 3 Pydantic v2 cognition schemas (Wave 1)
+- [x] 03-02-PLAN.md — Tile-grid perception scan within radius, two-level daily schedule generation via LLM with hourly blocks and sub-task decomposition (Wave 2)
+- [x] 03-03-PLAN.md — LLM-powered action decisions from perception+memory context, multi-turn conversation system with cooldown, post-conversation schedule revision (Wave 3)
 
 ---
 
