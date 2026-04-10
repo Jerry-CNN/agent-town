@@ -78,7 +78,7 @@ async def retrieve_memories(
                 query_texts=[query],
                 n_results=effective_n,
                 where={"agent_id": agent_id},
-                include=["documents", "metadatas", "distances"],
+                include=["documents", "metadatas", "distances", "ids"],
             )
             return results
         except Exception as exc:
@@ -94,13 +94,16 @@ async def retrieve_memories(
     docs = raw["documents"][0]
     metas = raw["metadatas"][0]
     dists = raw["distances"][0]
+    # ChromaDB returns ids at the top level when include=["ids"] is requested.
+    # The query result shape is: {"ids": [[id1, id2, ...]], "documents": [[...]], ...}
+    raw_ids: list[str] = raw.get("ids", [[]])[0]
 
     if not docs:
         return []
 
-    # Compute composite scores
-    scored: list[tuple[float, str, dict]] = []
-    for doc, meta, dist in zip(docs, metas, dists):
+    # Compute composite scores — track doc ID alongside score for correct write-back
+    scored: list[tuple[float, str, str, dict]] = []
+    for doc_id, doc, meta, dist in zip(raw_ids, docs, metas, dists):
         hours_since_access = (now - meta["last_access"]) / 3600.0
         recency = recency_decay ** hours_since_access
 
@@ -115,17 +118,18 @@ async def retrieve_memories(
             + relevance * relevance_weight
             + importance * importance_weight
         )
-        scored.append((score, doc, meta))
+        scored.append((score, doc_id, doc, meta))
 
     # Sort by composite score descending
     scored.sort(key=lambda x: x[0], reverse=True)
     top_results = scored[:top_k]
 
-    # Update last_access timestamps for retrieved memories (write-back)
-    retrieved_ids: list[str] = []
+    # Extract the IDs of the semantically top-k results for correct write-back.
+    # These are the memories that were actually accessed — NOT insertion-order IDs.
+    retrieved_ids: list[str] = [doc_id for _score, doc_id, _doc, _meta in top_results]
     memories: list[Memory] = []
 
-    for _score, doc, meta in top_results:
+    for _score, _doc_id, doc, meta in top_results:
         memories.append(
             Memory(
                 content=doc,
@@ -137,47 +141,43 @@ async def retrieve_memories(
             )
         )
 
-    # Write-back last_access for retrieved memories (best-effort; non-blocking)
-    # We need document IDs to update — re-query to get them.
-    if top_results:
-        await _update_last_access(simulation_id, agent_id, query, now, top_k)
+    # Write-back last_access using the exact IDs returned by the semantic query (WR-02 fix).
+    if retrieved_ids:
+        await _update_last_access_by_ids(simulation_id, retrieved_ids, now)
 
     return memories
 
 
-async def _update_last_access(
+async def _update_last_access_by_ids(
     simulation_id: str,
-    agent_id: str,
-    query: str,
+    doc_ids: list[str],
     now: float,
-    top_k: int,
 ) -> None:
-    """Write back updated last_access timestamps for recently retrieved memories."""
+    """Write back updated last_access timestamps for the exact document IDs retrieved.
+
+    Uses the IDs returned directly from the semantic query so that recency scoring
+    is updated for the memories that were actually accessed, not insertion-order ones.
+    """
 
     def _do_update() -> None:
         col = get_collection(simulation_id)
         try:
-            # Get IDs of the top_k memories for this agent
+            # Fetch current metadata for the specific retrieved documents
             results = col.get(
-                where={"agent_id": agent_id},
+                ids=doc_ids,
                 include=["metadatas"],
             )
             if not results["ids"]:
                 return
 
-            # Update last_access for all retrieved memories (simplified: update all for this agent)
-            # A full implementation would track which specific IDs were returned by the query,
-            # but since get() doesn't support semantic ordering, we update the most recently
-            # returned IDs. For correctness in the test suite, we update the single memory.
-            ids_to_update = results["ids"][:top_k]
             updated_metas = []
-            for meta in results["metadatas"][:top_k]:
+            for meta in results["metadatas"]:
                 updated = dict(meta)
                 updated["last_access"] = now
                 updated_metas.append(updated)
 
             col.update(
-                ids=ids_to_update,
+                ids=results["ids"],
                 metadatas=updated_metas,
             )
         except Exception as exc:
