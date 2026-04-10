@@ -12,8 +12,34 @@ class AgentAction(BaseModel):
 
 
 class WSMessage(BaseModel):
-    """WebSocket message contract for Phase 4 real-time communication."""
-    type: Literal["agent_update", "event", "ping", "pong", "error"]
+    """WebSocket message contract for Phase 4 real-time communication.
+
+    Outbound types (server -> browser):
+      agent_update:      Position + activity change for one agent (D-06)
+      conversation:      Multi-turn conversation turns between agents (D-06)
+      simulation_status: Running/paused state change (D-06, D-08)
+      snapshot:          Full state snapshot on client connect (D-05)
+      event:             User-injected event broadcast (Phase 6)
+      pong:              Response to browser ping
+      error:             Invalid message or server-side error
+
+    Inbound types (browser -> server):
+      pause:  Halt the simulation after current tick completes (D-08)
+      resume: Restart simulation from paused state (D-08)
+      ping:   Keepalive ping from browser
+    """
+    type: Literal[
+        "agent_update",       # D-06: position + activity change
+        "conversation",       # D-06: conversation turns
+        "simulation_status",  # D-06: running/paused state
+        "snapshot",           # D-05: full state on connect
+        "event",              # existing: injected events (Phase 6)
+        "ping",               # keepalive from browser
+        "pong",               # response to ping
+        "error",              # invalid message or server error
+        "pause",              # D-08: incoming command — pause simulation
+        "resume",             # D-08: incoming command — resume simulation
+    ]
     payload: dict
     timestamp: float
 

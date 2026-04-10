@@ -467,3 +467,198 @@ def test_get_snapshot():
         f"Expected 'paused', got {snapshot['simulation_status']}"
 
     assert "tick_count" in snapshot
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (Plan 02): ConnectionManager and WebSocket transport tests — TDD RED
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_connection_manager_broadcast():
+    """ConnectionManager broadcasts to all active connections."""
+    from backend.simulation.connection_manager import ConnectionManager
+
+    manager = ConnectionManager()
+
+    received_a = []
+    received_b = []
+
+    class MockWS:
+        def __init__(self, store):
+            self._store = store
+
+        async def send_text(self, text):
+            self._store.append(text)
+
+    ws_a = MockWS(received_a)
+    ws_b = MockWS(received_b)
+    manager.active_connections = [ws_a, ws_b]
+
+    await manager.broadcast("hello")
+
+    assert received_a == ["hello"], f"ws_a should receive 'hello', got {received_a}"
+    assert received_b == ["hello"], f"ws_b should receive 'hello', got {received_b}"
+
+
+@pytest.mark.asyncio
+async def test_connection_manager_dead_connection():
+    """Dead WebSocket connections are removed silently during broadcast."""
+    from backend.simulation.connection_manager import ConnectionManager
+
+    manager = ConnectionManager()
+
+    received_good = []
+
+    class GoodWS:
+        async def send_text(self, text):
+            received_good.append(text)
+
+    class DeadWS:
+        async def send_text(self, text):
+            raise RuntimeError("Connection lost")
+
+    good = GoodWS()
+    dead = DeadWS()
+    manager.active_connections = [dead, good]
+
+    # Should NOT raise — dead connection absorbed silently
+    await manager.broadcast("data")
+
+    # Dead connection removed from active list
+    assert dead not in manager.active_connections, "Dead WS should be removed"
+    assert good in manager.active_connections, "Good WS should remain"
+    assert received_good == ["data"], "Good WS should still receive the message"
+
+
+@pytest.mark.asyncio
+async def test_ws_snapshot_on_connect():
+    """First message received by a new WebSocket client is type='snapshot'."""
+    import json
+    from httpx import AsyncClient, ASGITransport
+    from backend.main import app
+    from unittest.mock import MagicMock
+
+    # Mock engine on app.state
+    mock_engine = MagicMock()
+    mock_engine.get_snapshot.return_value = {
+        "agents": [{"name": "Alice", "coord": [5, 5], "activity": "walking"}],
+        "simulation_status": "running",
+        "tick_count": 0,
+    }
+    app.state.engine = mock_engine
+
+    # Mock connection_manager on app.state
+    from backend.simulation.connection_manager import ConnectionManager
+    mock_manager = ConnectionManager()
+    app.state.connection_manager = mock_manager
+
+    from starlette.testclient import TestClient
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws") as ws:
+            first_message = ws.receive_text()
+            data = json.loads(first_message)
+            assert data["type"] == "snapshot", f"Expected 'snapshot', got {data['type']}"
+            assert "agents" in data["payload"], "Snapshot payload should contain agents"
+            assert "simulation_status" in data["payload"], "Snapshot payload should contain simulation_status"
+
+
+@pytest.mark.asyncio
+async def test_ws_pause_command():
+    """Sending a pause WSMessage via WebSocket calls engine.pause()."""
+    import json
+    from backend.main import app
+    from unittest.mock import MagicMock
+    from backend.simulation.connection_manager import ConnectionManager
+
+    mock_engine = MagicMock()
+    mock_engine.get_snapshot.return_value = {
+        "agents": [],
+        "simulation_status": "running",
+        "tick_count": 0,
+    }
+    mock_engine._running = MagicMock()
+    mock_engine._running.is_set.return_value = False  # After pause
+    app.state.engine = mock_engine
+    app.state.connection_manager = ConnectionManager()
+
+    import time
+    pause_msg = json.dumps({"type": "pause", "payload": {}, "timestamp": time.time()})
+
+    from starlette.testclient import TestClient
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws") as ws:
+            ws.receive_text()  # Consume snapshot
+            ws.send_text(pause_msg)
+            # Give the server a moment to process
+            import time as t
+            t.sleep(0.1)
+
+    mock_engine.pause.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_ws_resume_command():
+    """Sending a resume WSMessage via WebSocket calls engine.resume()."""
+    import json
+    import time
+    from backend.main import app
+    from unittest.mock import MagicMock
+    from backend.simulation.connection_manager import ConnectionManager
+
+    mock_engine = MagicMock()
+    mock_engine.get_snapshot.return_value = {
+        "agents": [],
+        "simulation_status": "paused",
+        "tick_count": 0,
+    }
+    mock_engine._running = MagicMock()
+    mock_engine._running.is_set.return_value = True  # After resume
+    app.state.engine = mock_engine
+    app.state.connection_manager = ConnectionManager()
+
+    resume_msg = json.dumps({"type": "resume", "payload": {}, "timestamp": time.time()})
+
+    from starlette.testclient import TestClient
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws") as ws:
+            ws.receive_text()  # Consume snapshot
+            ws.send_text(resume_msg)
+            import time as t
+            t.sleep(0.1)
+
+    mock_engine.resume.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_broadcast_reaches_all_clients():
+    """Engine's broadcast_callback sends agent_update to all connected WS clients."""
+    import asyncio
+    import time
+    from backend.simulation.connection_manager import ConnectionManager
+    from backend.schemas import WSMessage
+
+    manager = ConnectionManager()
+    received = []
+
+    class MockWS:
+        async def send_text(self, text):
+            received.append(text)
+
+    ws1 = MockWS()
+    ws2 = MockWS()
+    manager.active_connections = [ws1, ws2]
+
+    # Simulate what the broadcast callback does
+    msg = WSMessage(
+        type="agent_update",
+        payload={"name": "Alice", "coord": [5, 5], "activity": "walking"},
+        timestamp=time.time(),
+    )
+    await manager.broadcast(msg.model_dump_json())
+
+    assert len(received) == 2, f"Both clients should have received message. got {len(received)}"
+    for raw in received:
+        import json
+        data = json.loads(raw)
+        assert data["type"] == "agent_update"

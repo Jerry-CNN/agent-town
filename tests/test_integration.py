@@ -90,12 +90,31 @@ async def test_config_openrouter_missing_key_returns_422(async_client: AsyncClie
 # ---------------------------------------------------------------------------
 
 def test_ws_ping_pong():
-    """Open WS connection, send ping, receive pong."""
+    """Open WS connection, send ping, receive pong (after snapshot handshake)."""
+    from unittest.mock import MagicMock
     from starlette.testclient import TestClient
     from backend.main import app
+    from backend.simulation.connection_manager import ConnectionManager
+
+    # Set up mock engine + connection_manager on app.state so the WS endpoint
+    # completes the snapshot-on-connect handshake before entering the message loop.
+    mock_engine = MagicMock()
+    mock_engine.get_snapshot.return_value = {
+        "agents": [],
+        "simulation_status": "running",
+        "tick_count": 0,
+    }
+    app.state.engine = mock_engine
+    app.state.connection_manager = ConnectionManager()
 
     client = TestClient(app)
     with client.websocket_connect("/ws") as ws:
+        # First message is always the snapshot (D-05)
+        snapshot_raw = ws.receive_text()
+        snapshot = json.loads(snapshot_raw)
+        assert snapshot["type"] == "snapshot"
+
+        # Now send ping and expect pong
         ws.send_text(json.dumps({"type": "ping", "payload": {}, "timestamp": 1.0}))
         response = ws.receive_text()
         data = json.loads(response)
