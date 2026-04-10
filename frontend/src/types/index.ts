@@ -6,15 +6,40 @@ export interface ProviderConfig {
   model?: string;
 }
 
+export const TILE_SIZE = 32;
+
+export interface SnapshotAgent {
+  name: string;
+  coord: [number, number];
+  activity: string;
+  occupation?: string;
+  innate?: string;
+  age?: number;
+}
+
 export interface AgentState {
   id: string;
   name: string;
   position: { x: number; y: number };
   activity: string;
   personality: string[];
+  occupation?: string;
+  innate?: string;
+  age?: number;
+  currentLocation?: string;
 }
 
-export type WSMessageType = "agent_update" | "event" | "ping" | "pong" | "error";
+export type WSMessageType =
+  | "agent_update"
+  | "conversation"
+  | "simulation_status"
+  | "snapshot"
+  | "event"
+  | "ping"
+  | "pong"
+  | "error"
+  | "pause"
+  | "resume";
 
 export interface WSMessage {
   type: WSMessageType;
@@ -33,10 +58,13 @@ export interface SimulationStore {
 
   // Actions
   setAgents: (agents: Record<string, AgentState>) => void;
+  updateAgentsFromSnapshot: (agents: SnapshotAgent[]) => void;
+  updateAgentPosition: (name: string, coord: [number, number], activity: string) => void;
   appendFeed: (msg: WSMessage) => void;
   setConnected: (v: boolean) => void;
   setPaused: (v: boolean) => void;
   setSelectedAgent: (id: string | null) => void;
   setProviderConfig: (config: ProviderConfig) => void;
+  setSendMessage: (fn: ((msg: WSMessage) => void) | null) => void;
   reset: () => void;
 }
