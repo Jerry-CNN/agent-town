@@ -152,7 +152,11 @@ Plans:
 3. A whisper event targeted at one specific agent is received by only that agent initially; other agents have no knowledge of it.
 4. The whispered event spreads to at least one additional agent through a natural agent-to-agent conversation within a reasonable number of simulation ticks, and the activity feed shows the gossip propagating.
 
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Backend event injection: extend WSMessage with inject_event type, SimulationEngine.inject_event() method storing high-importance memories, ws.py handler with validation, backend tests (Wave 1)
+- [ ] 06-02-PLAN.md — Frontend event UI: enable BottomBar input, broadcast/whisper toggle, whisper agent dropdown, inject_event WSMessage dispatch, frontend tests, human verification (Wave 2, depends on 01)
 
 ---
 
@@ -211,4 +215,4 @@ Plans:
 | 3. Agent Cognition | 0/3 | Not started | - |
 | 4. Simulation Engine & Transport | 0/2 | Not started | - |
 | 5. Frontend | 0/4 | Not started | - |
-| 6. Event Injection | 0/? | Not started | - |
+| 6. Event Injection | 0/2 | Not started | - |
