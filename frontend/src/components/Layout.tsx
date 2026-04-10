@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useSimulationStore } from "../store/simulationStore";
 import { ActivityFeed } from "./ActivityFeed";
+import { AgentInspector } from "./AgentInspector";
 import { BottomBar } from "./BottomBar";
 import { MapCanvas } from "./MapCanvas";
 
@@ -89,16 +91,10 @@ export function Layout({ selectedAgentId }: LayoutProps) {
           }}
         >
           {selectedAgentId !== null ? (
-            <div
-              style={{
-                padding: "16px",
-                color: "#888",
-                fontStyle: "italic",
-                fontSize: "13px",
-              }}
-            >
-              Inspector placeholder — Phase 5
-            </div>
+            <AgentInspector
+              agentId={selectedAgentId}
+              onClose={() => useSimulationStore.getState().setSelectedAgent(null)}
+            />
           ) : (
             <ActivityFeed />
           )}
