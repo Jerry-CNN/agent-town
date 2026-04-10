@@ -1,7 +1,7 @@
 """Pydantic v2 schemas for Agent Town backend."""
 import re
 from typing import Literal
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class AgentAction(BaseModel):
@@ -79,3 +79,76 @@ class AgentConfig(BaseModel):
     currently: str            # current situation summary (seed for Phase 3 context)
     scratch: AgentScratch
     spatial: AgentSpatial
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Agent Cognition schemas
+# ---------------------------------------------------------------------------
+
+
+class SubTask(BaseModel):
+    """A fine-grained sub-task decomposed from a schedule entry (5-15 minutes each)."""
+    start_minute: int = Field(ge=0, lt=1440, description="Minutes from midnight")
+    duration_minutes: int = Field(ge=5, le=60)
+    describe: str
+
+
+class ScheduleEntry(BaseModel):
+    """An hourly block in an agent's daily schedule."""
+    start_minute: int = Field(ge=0, lt=1440)
+    duration_minutes: int = Field(ge=15, le=120)
+    describe: str
+    decompose: list[SubTask] = []
+
+
+class DailySchedule(BaseModel):
+    """LLM-generated daily schedule for an agent (D-08)."""
+    activities: list[str] = Field(min_length=3)
+    wake_hour: int = Field(ge=4, le=11)
+
+
+class ImportanceScore(BaseModel):
+    """LLM-assigned importance score for a memory (D-03, T-03-01).
+
+    Pydantic enforces the 1-10 range; instructor retries on validation failure.
+    """
+    score: int = Field(ge=1, le=10)
+    reasoning: str = ""
+
+
+class ConversationDecision(BaseModel):
+    """LLM decision on whether two agents should initiate a conversation (D-11)."""
+    should_talk: bool
+    reasoning: str
+
+
+class ConversationTurn(BaseModel):
+    """A single turn in a multi-turn agent conversation (D-12)."""
+    text: str
+    end_conversation: bool = False
+
+
+class ScheduleRevision(BaseModel):
+    """LLM-generated revision of an agent's remaining daily schedule (D-10, D-13)."""
+    revised_entries: list[ScheduleEntry]
+    reason: str
+
+
+class PerceptionResult(BaseModel):
+    """Result of an agent's perception sweep over the tile grid (D-06, D-07)."""
+    nearby_events: list[dict] = []
+    nearby_agents: list[dict] = []
+    location: str = ""
+
+
+class Memory(BaseModel):
+    """A single entry in an agent's memory stream stored in ChromaDB (D-01).
+
+    Importance is stored as metadata for composite retrieval scoring (D-02).
+    """
+    content: str
+    agent_id: str
+    memory_type: Literal["observation", "conversation", "action", "event"]
+    importance: int = Field(ge=1, le=10)
+    created_at: float
+    last_access: float
