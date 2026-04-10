@@ -71,7 +71,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.send_text(snapshot_msg.model_dump_json())
 
     # Now register: client will receive all future broadcast deltas
-    manager.active_connections.append(websocket)
+    manager.register(websocket)
 
     try:
         while True:

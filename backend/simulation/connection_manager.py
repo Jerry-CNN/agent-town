@@ -44,17 +44,22 @@ class ConnectionManager:
     def __init__(self) -> None:
         self.active_connections: list[WebSocket] = []
 
-    async def connect(self, websocket: WebSocket) -> None:
-        """Accept a new WebSocket connection and add to active list.
+    def register(self, websocket: WebSocket) -> None:
+        """Add an already-accepted WebSocket to the active broadcast list.
 
-        Note: For snapshot-first pattern (D-05), callers should send the
-        snapshot message BEFORE calling connect() to avoid delta race conditions.
-        This method accepts the WebSocket if not already accepted.
+        Callers (ws.py) are responsible for accepting the connection and
+        sending the full snapshot BEFORE registering.  This enforces the
+        snapshot-first pattern (D-05): the client receives the baseline state
+        before any broadcast deltas can arrive.
+
+        The former connect() method (which called websocket.accept() internally)
+        was removed because ws.py never used it — it accepted directly and then
+        appended to active_connections, making connect() dead code that could
+        trigger a double-accept RuntimeError if called by accident (WR-01).
 
         Args:
-            websocket: The incoming WebSocket connection.
+            websocket: An already-accepted WebSocket to add to the broadcast list.
         """
-        await websocket.accept()
         self.active_connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket) -> None:
