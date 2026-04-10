@@ -128,7 +128,13 @@ Plans:
 4. Clicking an agent opens an inspection panel showing their personality traits, current activity, and last 5 memory entries.
 5. The activity feed scrolls in real-time showing agent actions, conversations, and activity changes as they happen.
 
-**Plans:** TBD
+**Plans:** 4 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Data layer: extend frontend types with full WSMessageType union, upgrade Zustand store with agent dispatch actions (snapshot, agent_update, simulation_status), wire WebSocket message routing, connect BottomBar pause/resume to backend (Wave 1)
+- [ ] 05-02-PLAN.md — Tile map and backend memories: PixiJS sector zone rendering with colored rectangles and text labels from town.json, backend GET /api/agents/{name}/memories endpoint for inspector (Wave 1, parallel to 01)
+- [ ] 05-03-PLAN.md — Agent sprites: PixiJS colored circles with initial letters, name/activity labels, smooth lerp interpolation, click-to-select, pan/zoom viewport (Wave 2, depends on 01 + 02)
+- [ ] 05-04-PLAN.md — Activity feed and inspector: formatted feed entries with colored agent names and timestamps, scroll-pause behavior, agent inspector panel with personality/memories display (Wave 2, parallel to 03, depends on 01)
 
 ---
 
@@ -204,5 +210,5 @@ Plans:
 | 2. World & Navigation | 0/3 | Not started | - |
 | 3. Agent Cognition | 0/3 | Not started | - |
 | 4. Simulation Engine & Transport | 0/2 | Not started | - |
-| 5. Frontend | 0/? | Not started | - |
+| 5. Frontend | 0/4 | Not started | - |
 | 6. Event Injection | 0/? | Not started | - |
