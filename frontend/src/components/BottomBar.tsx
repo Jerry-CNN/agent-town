@@ -1,9 +1,22 @@
 import { useSimulationStore } from "../store/simulationStore";
+import { getSendMessage } from "../store/simulationStore";
 
 export function BottomBar() {
   const isPaused = useSimulationStore((state) => state.isPaused);
-  const setPaused = useSimulationStore((state) => state.setPaused);
   const providerConfig = useSimulationStore((state) => state.providerConfig);
+
+  function handlePauseResume() {
+    const send = getSendMessage();
+    if (send) {
+      send({
+        type: isPaused ? "resume" : "pause",
+        payload: {},
+        timestamp: Date.now() / 1000,
+      });
+    }
+    // Do NOT call setPaused locally — backend will broadcast simulation_status,
+    // which the WS dispatch handler sets isPaused. Single source of truth.
+  }
 
   return (
     <div
@@ -19,7 +32,7 @@ export function BottomBar() {
     >
       <button
         type="button"
-        onClick={() => setPaused(!isPaused)}
+        onClick={handlePauseResume}
         style={{
           padding: "6px 16px",
           background: isPaused ? "#e07b39" : "#3a86ff",

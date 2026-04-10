@@ -35,22 +35,82 @@ export function useWebSocket(url: string): { isConnected: boolean } {
           return;
         }
         reconnectAttempts.current = 0;
-        useSimulationStore.getState().setConnected(true);
+        const store = useSimulationStore.getState();
+        store.setConnected(true);
+        // Store send function so BottomBar and other components can send WS commands
+        store.setSendMessage((msg: WSMessage) => ws.send(JSON.stringify(msg)));
       };
 
       ws.onmessage = (event) => {
         if (unmountedRef.current) return;
+        let msg: WSMessage;
         try {
-          const msg = JSON.parse(event.data as string) as WSMessage;
-          useSimulationStore.getState().appendFeed(msg);
+          msg = JSON.parse(event.data as string) as WSMessage;
         } catch (err) {
+          // T-05-01: malformed messages are discarded and logged, never inserted into store
           console.warn("[useWebSocket] Discarding malformed message:", err);
-          // T-02-02: malformed messages are discarded, not appended to feed
+          return;
+        }
+
+        const store = useSimulationStore.getState();
+
+        switch (msg.type) {
+          case "snapshot": {
+            // Full state on connect: initialize all agent positions and paused state
+            const payload = msg.payload as {
+              agents?: Array<{ name: string; coord: [number, number]; activity: string }>;
+              simulation_status?: string;
+            };
+            if (Array.isArray(payload.agents)) {
+              store.updateAgentsFromSnapshot(payload.agents);
+            }
+            store.setPaused(payload.simulation_status === "paused");
+            break;
+          }
+          case "agent_update": {
+            // Delta: update a single agent's position and activity
+            const payload = msg.payload as {
+              name?: string;
+              coord?: [number, number];
+              activity?: string;
+            };
+            if (payload.name && Array.isArray(payload.coord) && payload.activity !== undefined) {
+              store.updateAgentPosition(payload.name, payload.coord as [number, number], payload.activity);
+            }
+            break;
+          }
+          case "conversation":
+            // Conversation turns belong in the activity feed
+            store.appendFeed(msg);
+            break;
+          case "simulation_status": {
+            // Running/paused state change broadcast from backend
+            const payload = msg.payload as { status?: string };
+            store.setPaused(payload.status === "paused");
+            break;
+          }
+          case "event":
+            // User-injected events belong in the activity feed
+            store.appendFeed(msg);
+            break;
+          case "pong":
+            console.debug("[useWebSocket] pong received");
+            break;
+          case "error":
+            console.warn("[useWebSocket] Server error:", msg.payload);
+            break;
+          case "ping":
+            // Server won't send pings to client; ignore if received
+            break;
+          default:
+            console.warn("[useWebSocket] Unknown message type:", (msg as WSMessage).type);
         }
       };
 
       ws.onclose = () => {
-        useSimulationStore.getState().setConnected(false);
+        const store = useSimulationStore.getState();
+        store.setConnected(false);
+        store.setSendMessage(null);
         if (!unmountedRef.current) {
           scheduleReconnect();
         }
@@ -92,7 +152,9 @@ export function useWebSocket(url: string): { isConnected: boolean } {
         wsRef.current.close();
         wsRef.current = null;
       }
-      useSimulationStore.getState().setConnected(false);
+      const store = useSimulationStore.getState();
+      store.setConnected(false);
+      store.setSendMessage(null);
     };
   }, [url]);
 
