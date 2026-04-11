@@ -244,13 +244,13 @@ class SimulationEngine:
         try:
             await asyncio.wait_for(
                 self._agent_step(agent_name, agent),
-                timeout=TICK_INTERVAL * 2,
+                timeout=max(TICK_INTERVAL * 4, 120),
             )
         except asyncio.TimeoutError:
             logger.warning(
                 "Agent %s step timed out after %ds — skipping tick",
                 agent_name,
-                TICK_INTERVAL * 2,
+                max(TICK_INTERVAL * 4, 120),
             )
         except Exception as exc:
             # T-04-01: Critical — absorb ALL exceptions so sibling agents are never cancelled

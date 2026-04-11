@@ -42,7 +42,7 @@ const RADIUS = 12;
 const LERP = 0.08;
 
 /** Max chars for activity label (D-07: 25 chars on map, full text in inspector) */
-const MAX_ACTIVITY_LEN = 25;
+const MAX_ACTIVITY_LEN = 18;
 
 function truncateActivity(text: string): string {
   if (text.length <= MAX_ACTIVITY_LEN) return text;
@@ -93,19 +93,18 @@ function AgentSpriteInner({ agentId, colorIndex, onSelect }: AgentSpriteProps) {
   );
 
   // Background pill for activity text (above circle) — D-05
-  // Fixed width 180px covers 25-char truncated text at 16px font
   const drawActivityPill = useCallback((g: PixiGraphics) => {
     g.clear();
-    g.setFillStyle({ color: 0x111111, alpha: 0.65 });
-    g.roundRect(-90, -42, 180, 22, 6);
+    g.setFillStyle({ color: 0x111111, alpha: 0.7 });
+    g.roundRect(-55, -26, 110, 14, 4);
     g.fill();
   }, []);
 
   // Background pill for name text (below circle) — D-05
   const drawNamePill = useCallback((g: PixiGraphics) => {
     g.clear();
-    g.setFillStyle({ color: 0x111111, alpha: 0.65 });
-    g.roundRect(-60, 14, 120, 24, 6);
+    g.setFillStyle({ color: 0x111111, alpha: 0.7 });
+    g.roundRect(-50, 12, 100, 16, 4);
     g.fill();
   }, []);
 
@@ -155,48 +154,48 @@ function AgentSpriteInner({ agentId, colorIndex, onSelect }: AgentSpriteProps) {
       {/* Activity pill background (D-05) — drawn before text so text renders on top */}
       <pixiGraphics draw={drawActivityPill} />
 
-      {/* Activity text ABOVE the circle — white on dark pill (D-06: 16px) */}
+      {/* Activity text ABOVE the circle — white on dark pill */}
       <pixiText
         ref={activityTextRef}
         text={initialActivity}
         x={0}
-        y={-30}
+        y={-19}
         anchor={{ x: 0.5, y: 1 }}
         style={{
           fontFamily: "system-ui, sans-serif",
-          fontSize: 16,
+          fontSize: 10,
           fill: 0xffffff,
         }}
       />
 
-      {/* Colored circle background (D-04) */}
+      {/* Colored circle background */}
       <pixiGraphics draw={drawCircle} />
 
-      {/* First initial letter — centered on circle (D-06: 16px) */}
+      {/* First initial letter — centered on circle */}
       <pixiText
         text={initialLetter}
-        x={-5}
-        y={-8}
+        x={-4}
+        y={-6}
         style={{
           fontFamily: "system-ui, sans-serif",
-          fontSize: 16,
+          fontSize: 12,
           fontWeight: "bold",
           fill: 0xffffff,
         }}
       />
 
-      {/* Name pill background (D-05) — drawn before text so text renders on top */}
+      {/* Name pill background */}
       <pixiGraphics draw={drawNamePill} />
 
-      {/* Name label BELOW the circle — white on dark pill (D-06: 20px) */}
+      {/* Name label BELOW the circle — white on dark pill */}
       <pixiText
         text={agentName}
         x={0}
-        y={26}
+        y={20}
         anchor={{ x: 0.5, y: 0 }}
         style={{
           fontFamily: "system-ui, sans-serif",
-          fontSize: 20,
+          fontSize: 12,
           fontWeight: "600",
           fill: 0xffffff,
         }}
