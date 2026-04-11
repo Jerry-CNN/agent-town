@@ -170,8 +170,8 @@ Plans:
 **UI hint**: no
 
 Plans:
-- [ ] 07-01-PLAN.md — Schema package split (schemas.py -> schemas/ with 4 domain files + backward-compat __init__.py), Event model with lifecycle/propagation/expiry, Building class + buildings.json data file
-- [ ] 07-02-PLAN.md — Agent class (unified AgentConfig + AgentState), SimulationEngine migration to dict[str, Agent], test updates (AgentState -> Agent), WebSocket contract test
+- [x] 07-01-PLAN.md — Schema package split (schemas.py -> schemas/ with 4 domain files + backward-compat __init__.py), Event model with lifecycle/propagation/expiry, Building class + buildings.json data file
+- [x] 07-02-PLAN.md — Agent class (unified AgentConfig + AgentState), SimulationEngine migration to dict[str, Agent], test updates (AgentState -> Agent), WebSocket contract test
 
 ---
 
