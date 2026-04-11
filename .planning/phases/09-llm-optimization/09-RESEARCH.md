@@ -453,22 +453,25 @@ if (provider === "openrouter") body.api_key = apiKey.trim();
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does the `/api/config` endpoint live in `main.py` or a dedicated router?**
    - What we know: `ProviderSetup.tsx` POSTs to `/api/config`; `config.py` has `state = AppState()`.
    - What's unclear: The router file was not read; the model field extension needs to target the right handler.
    - Recommendation: Planner should include "read backend/main.py or equivalent router to locate /api/config handler" as the first micro-step of the provider default task.
+   - **RESOLVED:** Confirmed via grep: `/api/config` is in `backend/routers/llm.py` (line 29). `main.py` includes the router at line 150: `app.include_router(llm.router)`. Plan 03 Task 1a targets `backend/routers/llm.py` directly.
 
 2. **Does `perception.location` always use slash-separated format?**
    - What we know: `perceive.py` was not read in this session.
    - What's unclear: The exact string format of `PerceptionResult.location`.
    - Recommendation: Planner should add a "read perceive.py to confirm location format" step in the per-sector gating task.
+   - **RESOLVED:** Plan 02 Task 1 implements gating using `last_sector` and `new_perceptions` parameters passed from the engine (Plan 03 wiring), not by parsing `perception.location`. The sector name is extracted from `AgentAction.destination` (a known sector name from the spatial tree), not from perception format. The location format question is moot for this design.
 
 3. **Should tick interval be broadcast to the frontend on every change or only on significant changes (>1s delta)?**
    - What we know: The bottom bar needs to display current tick interval (D-06).
    - What's unclear: Whether to broadcast on every `_latency_window.append()` or debounce.
    - Recommendation: Broadcast only when the computed interval changes by more than 1 second. This prevents constant WS messages for minor latency fluctuations.
+   - **RESOLVED:** Plan 03 broadcasts `tick_interval_update` once per tick (in `_tick_loop` after the sleep), not on every `_latency_window.append()`. Since ticks happen every 10+ seconds, this is inherently rate-limited. No debouncing needed.
 
 ---
 

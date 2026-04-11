@@ -2,7 +2,7 @@
 phase: 9
 slug: llm-optimization
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-04-11
 ---
@@ -38,22 +38,25 @@ created: 2026-04-11
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 09-01-01 | 01 | 1 | LLM-04 | — | Semaphore limits concurrent calls to 8 | unit | `cd backend && python -m pytest tests/test_gateway.py -k semaphore -v` | ❌ W0 | ⬜ pending |
-| 09-01-02 | 01 | 1 | LLM-02 | — | Adaptive tick tracks latency rolling window | unit | `cd backend && python -m pytest tests/test_engine.py -k adaptive -v` | ❌ W0 | ⬜ pending |
-| 09-02-01 | 02 | 1 | LLM-01 | — | 2-level cascade: sector then arena | unit | `cd backend && python -m pytest tests/test_decide.py -k cascade -v` | ❌ W0 | ⬜ pending |
-| 09-02-02 | 02 | 1 | LLM-01 | — | Per-sector gating skips LLM when unchanged | unit | `cd backend && python -m pytest tests/test_decide.py -k gating -v` | ❌ W0 | ⬜ pending |
-| 09-03-01 | 03 | 1 | LLM-03 | — | Repetition detection terminates conversation | unit | `cd backend && python -m pytest tests/test_converse.py -k repetition -v` | ❌ W0 | ⬜ pending |
+| 09-01-01 | 01 | 1 | LLM-04 | — | Semaphore limits concurrent calls to 8 | unit (inline TDD) | `cd backend && python -m pytest tests/test_gateway_semaphore.py -v` | Created inline by task | ⬜ pending |
+| 09-01-02 | 01 | 1 | LLM-02 | — | Adaptive tick tracks latency rolling window | unit (inline TDD) | `cd backend && python -m pytest tests/test_engine_adaptive.py -v` | Created inline by task | ⬜ pending |
+| 09-02-01 | 02 | 1 | LLM-01 | — | 2-level cascade: sector then arena; per-sector gating skips LLM when unchanged | unit (inline TDD) | `cd backend && python -m pytest tests/test_decide_cascade.py -v` | Created inline by task | ⬜ pending |
+| 09-02-02 | 02 | 1 | LLM-03 | — | Repetition detection terminates conversation | unit (inline TDD) | `cd backend && python -m pytest tests/test_converse_repetition.py -v` | Created inline by task | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+
+**Nyquist note:** All four plan tasks use `tdd="true"` with inline `<behavior>` blocks. Each task creates its own test file as part of the RED phase before writing production code. Separate Wave 0 test stubs are not needed because the inline TDD workflow produces the test files as the first action within each task.
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_gateway.py` — semaphore concurrency stubs for LLM-04
-- [ ] `tests/test_engine.py` — adaptive tick interval stubs for LLM-02
-- [ ] `tests/test_decide.py` — cascade + gating stubs for LLM-01
-- [ ] `tests/test_converse.py` — repetition detection stubs for LLM-03
+No separate Wave 0 needed. All test files are created inline by their respective TDD tasks:
+
+- `tests/test_gateway_semaphore.py` — created by Plan 01 Task 1 (inline TDD)
+- `tests/test_engine_adaptive.py` — created by Plan 01 Task 2 (inline TDD)
+- `tests/test_decide_cascade.py` — created by Plan 02 Task 1 (inline TDD)
+- `tests/test_converse_repetition.py` — created by Plan 02 Task 2 (inline TDD)
 
 *Existing test infrastructure covers framework setup.*
 
@@ -70,11 +73,11 @@ created: 2026-04-11
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 15s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or inline TDD coverage
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Inline TDD replaces Wave 0 — test files created as first step of each task
+- [x] No watch-mode flags
+- [x] Feedback latency < 15s
+- [x] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
