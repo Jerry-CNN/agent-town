@@ -1,0 +1,114 @@
+[
+  {
+    "name": "Town Cafe",
+    "sector": "cafe",
+    "opens": 7,
+    "closes": 22,
+    "purpose": "food"
+  },
+  {
+    "name": "Stock Exchange",
+    "sector": "stock-exchange",
+    "opens": 9,
+    "closes": 17,
+    "purpose": "finance"
+  },
+  {
+    "name": "Wedding Hall",
+    "sector": "wedding-hall",
+    "opens": 10,
+    "closes": 23,
+    "purpose": "social"
+  },
+  {
+    "name": "Central Park",
+    "sector": "park",
+    "opens": 0,
+    "closes": 24,
+    "purpose": "leisure"
+  },
+  {
+    "name": "Town Office",
+    "sector": "office",
+    "opens": 8,
+    "closes": 18,
+    "purpose": "work"
+  },
+  {
+    "name": "General Shop",
+    "sector": "shop",
+    "opens": 8,
+    "closes": 20,
+    "purpose": "retail"
+  },
+  {
+    "name": "Alice's Home",
+    "sector": "home-alice",
+    "opens": 0,
+    "closes": 24,
+    "purpose": "residential"
+  },
+  {
+    "name": "Bob's Home",
+    "sector": "home-bob",
+    "opens": 0,
+    "closes": 24,
+    "purpose": "residential"
+  },
+  {
+    "name": "Carla's Home",
+    "sector": "home-carla",
+    "opens": 0,
+    "closes": 24,
+    "purpose": "residential"
+  },
+  {
+    "name": "David's Home",
+    "sector": "home-david",
+    "opens": 0,
+    "closes": 24,
+    "purpose": "residential"
+  },
+  {
+    "name": "Emma's Home",
+    "sector": "home-emma",
+    "opens": 0,
+    "closes": 24,
+    "purpose": "residential"
+  },
+  {
+    "name": "Frank's Home",
+    "sector": "home-frank",
+    "opens": 0,
+    "closes": 24,
+    "purpose": "residential"
+  },
+  {
+    "name": "Grace's Home",
+    "sector": "home-grace",
+    "opens": 0,
+    "closes": 24,
+    "purpose": "residential"
+  },
+  {
+    "name": "Henry's Home",
+    "sector": "home-henry",
+    "opens": 0,
+    "closes": 24,
+    "purpose": "residential"
+  },
+  {
+    "name": "Isabel's Home",
+    "sector": "home-isabel",
+    "opens": 0,
+    "closes": 24,
+    "purpose": "residential"
+  },
+  {
+    "name": "James's Home",
+    "sector": "home-james",
+    "opens": 0,
+    "closes": 24,
+    "purpose": "residential"
+  }
+]

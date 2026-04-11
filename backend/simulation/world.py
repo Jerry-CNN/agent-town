@@ -12,10 +12,14 @@ Design decisions (from 02-RESEARCH.md):
 
 from __future__ import annotations
 
+import json
 import random
 from collections import deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Union
+
+BUILDINGS_PATH = Path(__file__).parent.parent / "data" / "map" / "buildings.json"
 
 # Hierarchical address levels for the 3-level scheme
 ADDRESS_KEYS: list[str] = ["world", "sector", "arena"]
@@ -98,6 +102,42 @@ class Tile:
     def is_walkable(self) -> bool:
         """True when the tile is not a collision tile."""
         return not self.collision
+
+
+@dataclass
+class Building:
+    """Sector-level metadata for a building in the town map.
+
+    Loaded from backend/data/map/buildings.json, indexed by sector name.
+    Separate from town.json (tile geometry) per D-06.
+
+    Attributes:
+        name:    Human-readable display name (e.g. "Town Cafe").
+        sector:  Key matching address_tiles (e.g. "cafe" for "agent-town:cafe").
+        opens:   Hour the building opens (0-23).
+        closes:  Hour the building closes (0-23); 24 means midnight/never closes.
+        purpose: Activity tag: "food", "finance", "social", "leisure",
+                 "residential", "work", or "retail".
+    """
+    name: str
+    sector: str
+    opens: int    # hour (0-23)
+    closes: int   # hour (0-23), 24 means midnight/never closes
+    purpose: str  # tag: "food", "finance", "social", "leisure", "residential", "work", "retail"
+
+
+def load_buildings() -> dict[str, "Building"]:
+    """Load Building metadata from buildings.json, indexed by sector name.
+
+    Returns empty dict if buildings.json does not exist.
+
+    Returns:
+        Dict mapping sector name -> Building instance.
+    """
+    if not BUILDINGS_PATH.exists():
+        return {}
+    raw = json.loads(BUILDINGS_PATH.read_text(encoding="utf-8"))
+    return {b["sector"]: Building(**b) for b in raw}
 
 
 class Maze:
