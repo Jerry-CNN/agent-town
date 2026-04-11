@@ -254,7 +254,7 @@ class SimulationEngine:
             )
         except Exception as exc:
             # T-04-01: Critical — absorb ALL exceptions so sibling agents are never cancelled
-            logger.warning("Agent %s step failed: %s", agent_name, exc)
+            logger.warning("Agent %s step failed: %s", agent_name, exc, exc_info=True)
 
     async def _agent_step(self, agent_name: str, agent: Agent) -> None:
         """Single agent tick: perceive -> move OR converse OR decide.

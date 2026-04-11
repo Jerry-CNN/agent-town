@@ -171,7 +171,7 @@ async def test_agent_converse_returns_none_when_attempt_fails():
     mock_tile.address = ["agent-town", "cafe"]
     mock_tile.get_address.return_value = "agent-town:cafe"
     mock_maze = MagicMock()
-    mock_maze.tiles = {(5, 5): mock_tile}
+    mock_maze.tile_at.return_value = mock_tile
 
     with patch("backend.agents.cognition.converse.attempt_conversation", new_callable=AsyncMock, return_value=False) as mock_attempt, \
          patch("backend.agents.cognition.converse.run_conversation", new_callable=AsyncMock) as mock_run:
@@ -196,7 +196,7 @@ async def test_agent_converse_returns_result_when_attempt_succeeds():
     mock_tile.address = ["agent-town", "cafe"]
     mock_tile.get_address.return_value = "agent-town:cafe"
     mock_maze = MagicMock()
-    mock_maze.tiles = {(5, 5): mock_tile}
+    mock_maze.tile_at.return_value = mock_tile
 
     mock_convo_result = {"turns": ["hi", "hello"], "summary": "they chatted"}
 

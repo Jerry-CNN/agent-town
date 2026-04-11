@@ -89,10 +89,14 @@ class Agent:
         from backend.agents.cognition.converse import attempt_conversation, run_conversation
 
         # Derive location label from tile address — same as perceive.py:95
-        tile = maze.tiles.get(self.coord)
-        if tile and tile.address and len(tile.address) >= 2:
-            location = tile.get_address(as_list=False)
-        else:
+        # maze.tiles is list[list[Tile]] (2D grid), use tile_at() not .get()
+        try:
+            tile = maze.tile_at(self.coord)
+            if tile.address and len(tile.address) >= 2:
+                location = tile.get_address(as_list=False)
+            else:
+                location = "unknown location"
+        except (IndexError, AttributeError):
             location = "unknown location"
 
         should_talk = await attempt_conversation(
