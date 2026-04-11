@@ -101,6 +101,12 @@ class SimulationEngine:
         # Load buildings once at init — never per tick (anti-pattern)
         self._buildings: dict[str, Building] = load_buildings()
 
+        # Codex P1-4: Prevent duplicate simultaneous conversations between same pair.
+        # Two nearby agents can both pass check_cooldown() before either calls
+        # _record_conversation(), causing duplicate conversations and conflicting
+        # schedule writes. This set tracks in-flight conversation pairs within a tick.
+        self._active_conversations: set[frozenset[str]] = set()
+
     @property
     def tick_interval(self) -> float:
         """Adaptive tick interval per D-04: max(10, avg_latency * 1.5)."""
@@ -218,6 +224,10 @@ class SimulationEngine:
                 self._last_ejection_hour = self._sim_hour
                 await self._eject_agents_from_closed_buildings()
 
+            # Codex P1-4: Clear in-flight conversation pairs at start of each tick.
+            # Pairs from the previous tick are no longer relevant.
+            self._active_conversations.clear()
+
             # Run all agent steps concurrently (D-02)
             async with asyncio.TaskGroup() as tg:
                 for name, agent in self._agents.items():
@@ -226,6 +236,14 @@ class SimulationEngine:
 
             current_tick = self.tick_interval
             logger.debug("Tick %d complete, sleeping %.1fs (adaptive)", self._tick_count, current_tick)
+
+            # Broadcast tick interval update to frontend (D-06)
+            if self._broadcast_callback is not None:
+                await self._broadcast_callback({
+                    "type": "tick_interval_update",
+                    "tick_interval": round(current_tick, 1),
+                })
+
             await asyncio.sleep(current_tick)
 
     async def _agent_step_safe(self, agent_name: str, agent: Agent) -> None:
@@ -310,12 +328,28 @@ class SimulationEngine:
                     )
                     continue
 
+                # Codex P1-4: Claim this conversation pair before the async await.
+                # Both agent A and agent B may pass check_cooldown() simultaneously
+                # before either records the conversation. The _active_conversations set
+                # prevents both directions from firing in the same tick.
+                pair_key = frozenset({agent_name, other_name})
+                if pair_key in self._active_conversations:
+                    logger.debug(
+                        "Conversation %s <-> %s already in flight this tick — skipping",
+                        agent_name, other_name,
+                    )
+                    continue  # Try next nearby agent
+                self._active_conversations.add(pair_key)
+
                 # CR-01: Snapshot other agent's schedule before the await.
                 # Because all agent steps run concurrently in asyncio.TaskGroup,
                 # agent B's step may mutate its own schedule during the conversation.
                 schedule_b_snapshot = list(other_agent.schedule)
 
                 result = await agent.converse(other_agent, self.maze, self.simulation_id)
+                # Clean up in-flight claim regardless of conversation outcome
+                self._active_conversations.discard(pair_key)
+
                 if result:
                     revised_a = result.get("revised_schedule_a", [])
                     revised_b = result.get("revised_schedule_b", [])
@@ -344,6 +378,12 @@ class SimulationEngine:
         all_locations = _extract_known_locations(config.spatial.tree)
         open_locs = [loc for loc in all_locations if self._is_location_open(loc)]
 
+        # Codex P1-6: Detect schedule block changes for gating.
+        # Compare agent's current schedule entry (by sim time) to detect advancement.
+        current_schedule_block = self._get_current_schedule_describe(agent)
+        schedule_changed = (current_schedule_block != getattr(agent, '_last_schedule_block', None))
+        agent._last_schedule_block = current_schedule_block  # type: ignore[attr-defined]
+
         action = await decide_action(
             simulation_id=self.simulation_id,
             agent_name=agent_name,
@@ -353,7 +393,17 @@ class SimulationEngine:
             perception=perception,
             current_schedule=agent.schedule,
             open_locations=open_locs,
+            last_sector=agent.last_sector,
+            new_perceptions=bool(perception.nearby_agents or perception.nearby_events),
+            schedule_changed=schedule_changed,
         )
+
+        # D-08: If gating skipped the call, keep current action unchanged
+        if action is None:
+            return
+
+        # Update gating state for next tick
+        agent.last_sector = action.destination.split(":")[0] if ":" in action.destination else action.destination
 
         # Resolve destination to tile coordinates and compute BFS path (D-09, D-10)
         destination_valid = False
@@ -467,14 +517,38 @@ class SimulationEngine:
         """Broadcast conversation turns and summary to all connected clients.
 
         Args:
-            conversation_result: Dict from run_conversation() with "turns" and "summary".
+            conversation_result: Dict from run_conversation() with "turns", "summary",
+                                 and optionally "terminated_reason".
         """
         if self._broadcast_callback is not None:
-            await self._broadcast_callback({
+            payload = {
                 "type": "conversation",
                 "turns": conversation_result.get("turns", []),
                 "summary": conversation_result.get("summary", ""),
-            })
+            }
+            # D-11 / Codex P2-7: Include terminated_reason if present
+            if "terminated_reason" in conversation_result:
+                payload["terminated_reason"] = conversation_result["terminated_reason"]
+            await self._broadcast_callback(payload)
+
+    def _get_current_schedule_describe(self, agent: "Agent") -> str | None:
+        """Return the 'describe' field of the agent's current schedule entry, or None.
+
+        Used by Codex P1-6 schedule_changed gating: compares the current schedule
+        block description against the previous tick's value to detect schedule advancement.
+
+        Args:
+            agent: The agent whose schedule to inspect.
+
+        Returns:
+            The describe string of the most recent schedule entry at or before the
+            current simulation minute, or None if no matching entry is found.
+        """
+        current_minute = self._sim_hour * 60 + self._sim_minute
+        for entry in reversed(agent.schedule):
+            if hasattr(entry, 'start_minute') and entry.start_minute <= current_minute:
+                return getattr(entry, 'describe', None)
+        return None
 
     async def inject_event(self, text: str, mode: str, target: str | None = None) -> None:
         """Inject a user event into agent memory streams (Phase 6).

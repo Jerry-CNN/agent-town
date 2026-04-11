@@ -36,4 +36,4 @@ async def update_config(provider_config: ProviderConfig):
         provider_config.provider == "openrouter"
         and bool(provider_config.api_key)
     )
-    return {"status": "configured", "provider": provider_config.provider}
+    return {"status": "configured", "provider": provider_config.provider, "model": provider_config.model}

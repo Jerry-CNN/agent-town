@@ -4,12 +4,12 @@ from typing import Literal
 
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_DEFAULT_MODEL = "ollama_chat/llama3.1:8b"
-OPENROUTER_DEFAULT_MODEL = "openrouter/meta-llama/llama-3.1-8b-instruct:free"
+OPENROUTER_DEFAULT_MODEL = "openrouter/moonshotai/kimi-k2.5"
 
 
 @dataclass
 class AppState:
-    provider: Literal["ollama", "openrouter"] = "ollama"
+    provider: Literal["ollama", "openrouter"] = "openrouter"
     api_key: str | None = None
     model: str | None = None
     ollama_available: bool = False
