@@ -285,12 +285,27 @@ class SimulationEngine:
                     )
                     continue
 
+                # CR-01: Snapshot other agent's schedule before the await.
+                # Because all agent steps run concurrently in asyncio.TaskGroup,
+                # agent B's step may mutate its own schedule during the conversation.
+                schedule_b_snapshot = list(other_agent.schedule)
+
                 result = await agent.converse(other_agent, self.maze, self.simulation_id)
                 if result:
-                    revised_a = result.get("revised_schedule_a", agent.schedule)
-                    revised_b = result.get("revised_schedule_b", other_agent.schedule)
-                    agent.schedule = list(revised_a)
-                    other_agent.schedule = list(revised_b)
+                    revised_a = result.get("revised_schedule_a", [])
+                    revised_b = result.get("revised_schedule_b", [])
+                    if revised_a:
+                        agent.schedule = list(revised_a)
+                    # CR-01 guard: only apply revised_b if other agent's schedule
+                    # was not modified by a concurrent task during the await above.
+                    if revised_b and other_agent.schedule == schedule_b_snapshot:
+                        other_agent.schedule = list(revised_b)
+                    elif revised_b:
+                        logger.debug(
+                            "Skipped revised schedule write-back for %s: "
+                            "schedule was concurrently modified during conversation await",
+                            other_agent.name,
+                        )
 
                     await self._emit_conversation(result)
                     return  # conversation tick: no decide call this tick

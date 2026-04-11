@@ -167,8 +167,11 @@ async def test_agent_converse_returns_none_when_attempt_fails():
     config_b = _make_agent_config("Bob", (6, 5))
     agent_a = Agent(name="Alice", config=config_a, coord=(5, 5))
     agent_b = Agent(name="Bob", config=config_b, coord=(6, 5))
+    mock_tile = MagicMock()
+    mock_tile.address = ["agent-town", "cafe"]
+    mock_tile.get_address.return_value = "agent-town:cafe"
     mock_maze = MagicMock()
-    mock_maze.get_tile_name.return_value = "cafe"
+    mock_maze.tiles = {(5, 5): mock_tile}
 
     with patch("backend.agents.cognition.converse.attempt_conversation", new_callable=AsyncMock, return_value=False) as mock_attempt, \
          patch("backend.agents.cognition.converse.run_conversation", new_callable=AsyncMock) as mock_run:
@@ -189,8 +192,11 @@ async def test_agent_converse_returns_result_when_attempt_succeeds():
     config_b = _make_agent_config("Bob", (6, 5))
     agent_a = Agent(name="Alice", config=config_a, coord=(5, 5), current_activity="reading")
     agent_b = Agent(name="Bob", config=config_b, coord=(6, 5), current_activity="idle")
+    mock_tile = MagicMock()
+    mock_tile.address = ["agent-town", "cafe"]
+    mock_tile.get_address.return_value = "agent-town:cafe"
     mock_maze = MagicMock()
-    mock_maze.get_tile_name.return_value = "cafe"
+    mock_maze.tiles = {(5, 5): mock_tile}
 
     mock_convo_result = {"turns": ["hi", "hello"], "summary": "they chatted"}
 
@@ -207,7 +213,7 @@ async def test_agent_converse_returns_result_when_attempt_succeeds():
         other_name="Bob",
         other_activity="idle",
         agent_current_activity="reading",
-        location="cafe",
+        location="agent-town:cafe",
     )
     mock_run.assert_called_once_with(
         simulation_id="sim-01",
@@ -215,7 +221,7 @@ async def test_agent_converse_returns_result_when_attempt_succeeds():
         agent_a_scratch=config_a.scratch,
         agent_b_name="Bob",
         agent_b_scratch=config_b.scratch,
-        location="cafe",
+        location="agent-town:cafe",
         remaining_schedule_a=[],
         remaining_schedule_b=[],
     )

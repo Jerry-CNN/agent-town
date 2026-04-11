@@ -82,15 +82,17 @@ class Agent:
         Returns the run_conversation() result dict if a conversation occurred,
         or None if the attempt gate returned False.
 
-        The location string is derived from the Maze (maze.get_tile_name(self.coord)).
-        Falls back to "unknown location" if Maze does not expose a tile name method.
+        The location string is derived from the tile at the agent's current
+        coordinate via tile.get_address(as_list=False), matching the pattern
+        used by perceive.py.
         """
         from backend.agents.cognition.converse import attempt_conversation, run_conversation
 
-        # Derive location label — Maze.get_tile_name is the established pattern
-        try:
-            location = maze.get_tile_name(self.coord)
-        except AttributeError:
+        # Derive location label from tile address — same as perceive.py:95
+        tile = maze.tiles.get(self.coord)
+        if tile and tile.address and len(tile.address) >= 2:
+            location = tile.get_address(as_list=False)
+        else:
             location = "unknown location"
 
         should_talk = await attempt_conversation(
