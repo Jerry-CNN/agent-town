@@ -56,6 +56,14 @@ function sectorColor(name: string): number {
   return 0xcccccc; // generic fallback
 }
 
+/** Darken a hex color by a factor (0-1). Pure math, no library needed. */
+function darkenColor(hex: number, factor: number): number {
+  const r = Math.floor(((hex >> 16) & 0xff) * (1 - factor));
+  const g_ch = Math.floor(((hex >> 8) & 0xff) * (1 - factor));
+  const b = Math.floor((hex & 0xff) * (1 - factor));
+  return (r << 16) | (g_ch << 8) | b;
+}
+
 /** Format a sector name for display (hyphen → space, title case) */
 function formatSectorLabel(name: string): string {
   return name
@@ -128,10 +136,11 @@ const CANVAS_SIZE = MAP_SIZE * TILE_SIZE; // 3200px
 /** Label text style — reused across all sector labels */
 const LABEL_STYLE = new TextStyle({
   fontFamily: "Inter, system-ui, sans-serif",
-  fontSize: 13,
-  fontWeight: "600",
-  fill: 0x333333,
+  fontSize: 28,
+  fontWeight: "700",
+  fill: 0x222222,
   align: "center",
+  stroke: { color: 0xffffff, width: 3 },
 });
 
 /**
@@ -164,11 +173,17 @@ export function TileMap() {
     }
     g.fill();
 
-    // 3. Sector zones — colored filled rectangles
+    // 3. Sector zones — colored filled rectangles with wall outlines
     for (const bounds of SECTOR_BOUNDS) {
+      // Floor fill (existing)
       g.setFillStyle({ color: bounds.color });
       g.rect(bounds.x, bounds.y, bounds.width, bounds.height);
       g.fill();
+
+      // Wall stroke outline (D-01: 3px dark stroke per D-02)
+      g.setStrokeStyle({ color: darkenColor(bounds.color, 0.35), width: 3 });
+      g.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      g.stroke();
     }
   }, []);
 
