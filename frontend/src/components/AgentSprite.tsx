@@ -41,8 +41,8 @@ const RADIUS = 12;
 /** Lerp coefficient per frame (0.08 ≈ 95% converge within 1.5s at 60fps) */
 const LERP = 0.08;
 
-/** Max chars for activity label (D-06: avoid overflow) */
-const MAX_ACTIVITY_LEN = 30;
+/** Max chars for activity label (D-07: 25 chars on map, full text in inspector) */
+const MAX_ACTIVITY_LEN = 25;
 
 function truncateActivity(text: string): string {
   if (text.length <= MAX_ACTIVITY_LEN) return text;
@@ -92,6 +92,23 @@ function AgentSpriteInner({ agentId, colorIndex, onSelect }: AgentSpriteProps) {
     [color],
   );
 
+  // Background pill for activity text (above circle) — D-05
+  // Fixed width 180px covers 25-char truncated text at 16px font
+  const drawActivityPill = useCallback((g: PixiGraphics) => {
+    g.clear();
+    g.setFillStyle({ color: 0x111111, alpha: 0.65 });
+    g.roundRect(-90, -42, 180, 22, 6);
+    g.fill();
+  }, []);
+
+  // Background pill for name text (below circle) — D-05
+  const drawNamePill = useCallback((g: PixiGraphics) => {
+    g.clear();
+    g.setFillStyle({ color: 0x111111, alpha: 0.65 });
+    g.roundRect(-60, 14, 120, 24, 6);
+    g.fill();
+  }, []);
+
   // Read initial agent state for name/initial (stable after first render)
   const initialAgent = useSimulationStore.getState().agents[agentId];
   const agentName = initialAgent?.name ?? agentId;
@@ -135,46 +152,53 @@ function AgentSpriteInner({ agentId, colorIndex, onSelect }: AgentSpriteProps) {
       cursor="pointer"
       onPointerTap={handleClick}
     >
+      {/* Activity pill background (D-05) — drawn before text so text renders on top */}
+      <pixiGraphics draw={drawActivityPill} />
+
+      {/* Activity text ABOVE the circle — white on dark pill (D-06: 16px) */}
+      <pixiText
+        ref={activityTextRef}
+        text={initialActivity}
+        x={0}
+        y={-30}
+        anchor={{ x: 0.5, y: 1 }}
+        style={{
+          fontFamily: "system-ui, sans-serif",
+          fontSize: 16,
+          fill: 0xffffff,
+        }}
+      />
+
       {/* Colored circle background (D-04) */}
       <pixiGraphics draw={drawCircle} />
 
-      {/* First initial letter — centered on circle (D-04) */}
+      {/* First initial letter — centered on circle (D-06: 16px) */}
       <pixiText
         text={initialLetter}
-        x={-4}
-        y={-6}
+        x={-5}
+        y={-8}
         style={{
           fontFamily: "system-ui, sans-serif",
-          fontSize: 12,
+          fontSize: 16,
           fontWeight: "bold",
           fill: 0xffffff,
         }}
       />
 
-      {/* Activity text ABOVE the circle (D-06) */}
-      <pixiText
-        ref={activityTextRef}
-        text={initialActivity}
-        x={0}
-        y={-28}
-        anchor={{ x: 0.5, y: 1 }}
-        style={{
-          fontFamily: "system-ui, sans-serif",
-          fontSize: 9,
-          fill: 0x555555,
-        }}
-      />
+      {/* Name pill background (D-05) — drawn before text so text renders on top */}
+      <pixiGraphics draw={drawNamePill} />
 
-      {/* Name label BELOW the circle (D-06) */}
+      {/* Name label BELOW the circle — white on dark pill (D-06: 20px) */}
       <pixiText
         text={agentName}
         x={0}
-        y={16}
+        y={26}
         anchor={{ x: 0.5, y: 0 }}
         style={{
           fontFamily: "system-ui, sans-serif",
-          fontSize: 10,
-          fill: 0x333333,
+          fontSize: 20,
+          fontWeight: "600",
+          fill: 0xffffff,
         }}
       />
     </pixiContainer>
