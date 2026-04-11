@@ -166,8 +166,12 @@ Plans:
   4. Each injected or perceived event is represented as an Event object with a `status` field that is one of: created, active, spreading, expired.
   5. Schemas previously in `schemas.py` are importable from their new domain-grouped module paths with no import errors across the codebase.
   6. WebSocket snapshot and agent_update payloads are byte-identical before and after the refactor — a contract test compares serialized output from old and new code paths.
-**Plans**: TBD
+**Plans**: 2 plans
 **UI hint**: no
+
+Plans:
+- [ ] 07-01-PLAN.md — Schema package split (schemas.py -> schemas/ with 4 domain files + backward-compat __init__.py), Event model with lifecycle/propagation/expiry, Building class + buildings.json data file
+- [ ] 07-02-PLAN.md — Agent class (unified AgentConfig + AgentState), SimulationEngine migration to dict[str, Agent], test updates (AgentState -> Agent), WebSocket contract test
 
 ---
 
@@ -301,7 +305,7 @@ Plans:
 | 4. Simulation Engine & Transport | v1.0 | 2/2 | Complete | 2026-04-10 |
 | 5. Frontend | v1.0 | 4/4 | Complete | 2026-04-10 |
 | 6. Event Injection | v1.0 | 2/2 | Complete | 2026-04-10 |
-| 7. OOP Foundation | v1.1 | 0/? | Not started | - |
+| 7. OOP Foundation | v1.1 | 0/2 | Not started | - |
 | 8. Visual & Building Behavior | v1.1 | 0/? | Not started | - |
 | 9. LLM Optimization | v1.1 | 0/? | Not started | - |
 | 10. Task & Perception Systems | v1.1 | 0/? | Not started | - |
