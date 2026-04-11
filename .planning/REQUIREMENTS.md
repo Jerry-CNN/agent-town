@@ -66,32 +66,15 @@ Requirements for v1.1 milestone: Architecture & Polish.
 
 ### Building System
 
-- [ ] **BLD-01**: Building class with properties (name, operating hours, capacity, purpose tag)
+- [ ] **BLD-01**: Building class with properties (name, operating hours, purpose tag)
 - [ ] **BLD-02**: Buildings have wall tiles marked as collision so agents cannot walk through them
-- [ ] **BLD-03**: Agents respect building operating hours when choosing destinations (closed = pick elsewhere)
+- [ ] **BLD-03**: Agents respect building operating hours when choosing destinations (closed buildings excluded from LLM context; agent re-decides from open options)
 
 ### Event System
 
 - [ ] **EVTS-01**: Event class tracks lifecycle (created, active, spreading, expired)
 - [ ] **EVTS-02**: Events track propagation — which agents heard the event and when
 - [ ] **EVTS-03**: Events expire after a configurable duration
-
-### Relationship System
-
-- [ ] **REL-01**: Agents track relationships with other agents (familiarity, sentiment, last interaction)
-- [ ] **REL-02**: Relationship history affects conversation initiation and content
-- [ ] **REL-03**: Relationships are viewable in the agent inspector panel
-
-### Task System
-
-- [ ] **TSK-01**: Tasks have state tracking (queued, active, interrupted, completed)
-- [ ] **TSK-02**: Tasks can be interrupted by conversations and resumed afterward
-- [ ] **TSK-03**: Agent's current task state is visible in the inspector panel
-
-### Perception System
-
-- [ ] **PCPT-01**: Agents track what changed since their last perception scan (new events, new nearby agents)
-- [ ] **PCPT-02**: Agents react to changes rather than re-scanning the same static scene every tick
 
 ### Visual
 
@@ -105,20 +88,36 @@ Requirements for v1.1 milestone: Architecture & Polish.
 - [ ] **LLM-03**: Conversations detect repetition and terminate early instead of fixed turn count
 - [ ] **LLM-04**: asyncio.Semaphore controls concurrent LLM calls to prevent rate limits
 
+## v1.2 Requirements
+
+Deferred to next milestone (Agent Behavior). Tracked but not in current roadmap.
+
+### Task System
+
+- [ ] **TSK-01**: Tasks have state tracking (queued, active, interrupted, completed)
+- [ ] **TSK-02**: Tasks can be interrupted by conversations and resumed afterward
+- [ ] **TSK-03**: Agent's current task state is visible in the inspector panel
+
+### Perception System
+
+- [ ] **PCPT-01**: Agents track what changed since their last perception scan (new events, new nearby agents)
+- [ ] **PCPT-02**: Agents react to changes rather than re-scanning the same static scene every tick
+
 ### Reflection
 
 - [ ] **RFL-01**: Agents accumulate poignancy from perceived events and conversations
 - [ ] **RFL-02**: When poignancy crosses threshold, agent generates higher-level insight memories ("thoughts")
 - [ ] **RFL-03**: Reflection runs as background asyncio task, never blocking the agent step
 
+### Relationship System
+
+- [ ] **REL-01**: Agents track relationships with other agents (familiarity, sentiment, last interaction)
+- [ ] **REL-02**: Relationship history affects conversation initiation and content
+- [ ] **REL-03**: Relationships are viewable in the agent inspector panel
+
 ## v2 Requirements
 
 Deferred to future release. Tracked but not in current roadmap.
-
-### Agent Cognition (v2)
-
-- **AGT-09**: Reflection system where agents form higher-level insights from accumulated memories
-- **AGT-10**: Agents maintain and update relationship models of other agents
 
 ### Event Injection (v2)
 
@@ -166,40 +165,84 @@ Deferred to future release. Tracked but not in current roadmap.
 
 Which phases cover which requirements. Updated during roadmap creation.
 
+### v1.0 (Complete)
+
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ARCH-01 | TBD | Pending |
-| ARCH-02 | TBD | Pending |
-| ARCH-03 | TBD | Pending |
-| BLD-01 | TBD | Pending |
-| BLD-02 | TBD | Pending |
-| BLD-03 | TBD | Pending |
-| EVTS-01 | TBD | Pending |
-| EVTS-02 | TBD | Pending |
-| EVTS-03 | TBD | Pending |
-| REL-01 | TBD | Pending |
-| REL-02 | TBD | Pending |
-| REL-03 | TBD | Pending |
-| TSK-01 | TBD | Pending |
-| TSK-02 | TBD | Pending |
-| TSK-03 | TBD | Pending |
-| PCPT-01 | TBD | Pending |
-| PCPT-02 | TBD | Pending |
-| VIS-01 | TBD | Pending |
-| VIS-02 | TBD | Pending |
-| LLM-01 | TBD | Pending |
-| LLM-02 | TBD | Pending |
-| LLM-03 | TBD | Pending |
-| LLM-04 | TBD | Pending |
-| RFL-01 | TBD | Pending |
-| RFL-02 | TBD | Pending |
-| RFL-03 | TBD | Pending |
+| INF-01 | Phase 1 | Complete |
+| INF-02 | Phase 1 | Complete |
+| INF-03 | Phase 1 | Complete |
+| CFG-01 | Phase 1 | Complete |
+| CFG-02 | Phase 1 | Complete |
+| MAP-03 | Phase 2 | Complete |
+| MAP-04 | Phase 2 | Complete |
+| AGT-01 | Phase 2 | Complete |
+| AGT-02 | Phase 3 | Complete |
+| AGT-03 | Phase 3 | Complete |
+| AGT-04 | Phase 3 | Complete |
+| AGT-05 | Phase 3 | Complete |
+| AGT-06 | Phase 3 | Complete |
+| AGT-07 | Phase 3 | Complete |
+| AGT-08 | Phase 3 | Complete |
+| SIM-01 | Phase 4 | Complete |
+| SIM-02 | Phase 4 | Complete |
+| SIM-03 | Phase 4 | Complete |
+| MAP-01 | Phase 5 | Complete |
+| MAP-02 | Phase 5 | Complete |
+| MAP-05 | Phase 5 | Complete |
+| DSP-01 | Phase 5 | Complete |
+| DSP-02 | Phase 5 | Complete |
+| EVT-01 | Phase 6 | Complete |
+| EVT-02 | Phase 6 | Complete |
+| EVT-03 | Phase 6 | Complete |
+| EVT-04 | Phase 6 | Complete |
 
-**Coverage:**
-- v1.1 requirements: 26 total
-- Mapped to phases: 0
-- Unmapped: 26
+### v1.1 (In Progress)
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| ARCH-01 | Phase 7 | Pending |
+| ARCH-02 | Phase 7 | Pending |
+| ARCH-03 | Phase 7 | Pending |
+| BLD-01 | Phase 7 | Pending |
+| EVTS-01 | Phase 7 | Pending |
+| EVTS-02 | Phase 7 | Pending |
+| EVTS-03 | Phase 7 | Pending |
+| BLD-02 | Phase 8 | Pending |
+| BLD-03 | Phase 8 | Pending |
+| VIS-01 | Phase 8 | Pending |
+| VIS-02 | Phase 8 | Pending |
+| LLM-01 | Phase 9 | Pending |
+| LLM-02 | Phase 9 | Pending |
+| LLM-03 | Phase 9 | Pending |
+| LLM-04 | Phase 9 | Pending |
+
+**Coverage (v1.1):**
+- v1.1 requirements: 15 total
+- Mapped to phases: 15
+- Unmapped: 0
+
+### v1.2 (Planned)
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| TSK-01 | Phase 10 | Pending |
+| TSK-02 | Phase 10 | Pending |
+| TSK-03 | Phase 10 | Pending |
+| PCPT-01 | Phase 10 | Pending |
+| PCPT-02 | Phase 10 | Pending |
+| RFL-01 | Phase 11 | Pending |
+| RFL-02 | Phase 11 | Pending |
+| RFL-03 | Phase 11 | Pending |
+| REL-01 | Phase 12 | Pending |
+| REL-02 | Phase 12 | Pending |
+| REL-03 | Phase 12 | Pending |
+
+**Coverage (v1.2):**
+- v1.2 requirements: 11 total
+- Mapped to phases: 11
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-08*
-*Last updated: 2026-04-10 after v1.1 milestone scoping*
+*Last updated: 2026-04-10 after v1.1/v1.2 milestone split (Codex review)*

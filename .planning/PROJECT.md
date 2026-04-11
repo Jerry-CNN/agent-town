@@ -10,13 +10,14 @@ Users can type any event and immediately see AI agents respond to it in a living
 
 ## Current Milestone: v1.1 Architecture & Polish
 
-**Goal:** Refactor the codebase to proper OOP abstractions, fix the visual experience, and bring agent behavior closer to the reference implementation.
+**Goal:** Refactor the codebase to proper OOP abstractions, fix the visual experience, and optimize LLM call patterns.
 
 **Target features:**
 - Backend OOP refactoring — Agent class, Building/Location class, Event class with proper lifecycle
 - UI/visual overhaul — building walls, readable text, map looks like an actual town
 - LLM call optimization — 3-level decisions, conversation gating, smarter tick timing
-- Agent behavior fidelity — reflection system, relationship tracking, reference repo parity
+
+**Deferred to v1.2 (Agent Behavior):** Reflection system, relationship tracking, task state machine, perception diffing
 
 ## Requirements
 
