@@ -636,17 +636,13 @@ def load_buildings() -> dict[str, "Building"]:
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `loader.py` return `list[Agent]` or stay as `list[AgentConfig]`?**
-   - What we know: `loader.py` currently returns `list[AgentConfig]`; engine wraps these into `AgentState` during `initialize()`.
-   - What's unclear: Whether the Agent constructor should be called in `loader.py` (runtime-defaults zeroed) or in `engine.initialize()` (runtime-defaults set from config fields like `cfg.coord`).
-   - Recommendation: Keep `loader.py` returning `list[AgentConfig]` for now. Engine's `initialize()` constructs `Agent` objects. Isolates the migration to one file.
+   - RESOLVED: Keep `loader.py` returning `list[AgentConfig]`. Engine's `initialize()` constructs `Agent` objects. Isolates the migration to one file.
 
 2. **Does the Event class need a `tile_coord` field to integrate with `Tile._events`?**
-   - What we know: `engine.py` currently calls `add_memory(memory_type="event")` to ChromaDB and does NOT write to `Tile._events`. The perception scan in `perceive.py` reads `tile._events` but it's always empty for injected events.
-   - What's unclear: Whether Phase 7 should wire injected events into `Tile._events` (making them visible to the perception scan) or just add the Event model for lifecycle tracking.
-   - Recommendation: Phase 7 adds the `Event` model only. Wiring into `Tile._events` is a behavior change and belongs in a later phase (v1.2 PCPT requirements). Success criterion 4 only requires the `status` field, not tile-based integration.
+   - RESOLVED: Phase 7 adds the `Event` model only. Wiring into `Tile._events` is a behavior change and belongs in v1.2 PCPT requirements. Success criterion 4 only requires the `status` field.
 
 ---
 
