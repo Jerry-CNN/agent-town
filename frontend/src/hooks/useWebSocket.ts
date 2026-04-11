@@ -5,8 +5,7 @@ import type { WSMessage } from "../types";
 const MAX_RECONNECT_ATTEMPTS = 10;
 const RECONNECT_DELAY_MS = 3000;
 
-export function useWebSocket(url: string): { isConnected: boolean } {
-  const isConnected = useSimulationStore((state) => state.isConnected);
+export function useWebSocket(url: string): void {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttempts = useRef(0);
   const unmountedRef = useRef(false);
@@ -158,5 +157,4 @@ export function useWebSocket(url: string): { isConnected: boolean } {
     };
   }, [url]);
 
-  return { isConnected };
 }

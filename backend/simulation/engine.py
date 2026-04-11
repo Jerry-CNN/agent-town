@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 # D-01: Tick interval in seconds. Within the 5-10s decision range from D-01.
 # Actual tick duration is max(TICK_INTERVAL, slowest_agent_LLM_time) per D-02.
-TICK_INTERVAL: int = 5
+TICK_INTERVAL: int = 30
 
 
 @dataclass
@@ -176,13 +176,31 @@ class SimulationEngine:
             )
 
     async def run(self) -> None:
-        """Enter the running state and start the tick loop.
+        """Enter the running state and start the tick loop + movement loop.
 
-        Sets the asyncio.Event flag (D-07) then enters _tick_loop().
-        This coroutine runs indefinitely until cancelled.
+        Sets the asyncio.Event flag (D-07) then runs both loops concurrently.
+        The tick loop handles LLM decisions (every TICK_INTERVAL seconds).
+        The movement loop handles visual path walking (every 500ms).
         """
         self._running.set()
-        await self._tick_loop()
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(self._tick_loop())
+            tg.create_task(self._movement_loop())
+
+    async def _movement_loop(self) -> None:
+        """Fast movement loop — moves agents along BFS paths every 500ms.
+
+        Decoupled from the LLM tick so agents walk visually fast while
+        decisions happen on a slower cadence.
+        """
+        while True:
+            await self._running.wait()
+            for name, state in self._agent_states.items():
+                if state.path:
+                    next_tile = state.path.pop(0)
+                    state.coord = next_tile
+                    await self._emit_agent_update(name, state)
+            await asyncio.sleep(0.5)
 
     async def _tick_loop(self) -> None:
         """Main simulation loop — one iteration per tick.
@@ -271,12 +289,10 @@ class SimulationEngine:
             all_agents=all_agents_view,
         )
 
-        # 2. MOVEMENT PHASE (D-09, D-10): advance one tile along stored BFS path
+        # 2. MOVEMENT: handled by _movement_loop() (fast 500ms cycle)
+        # If agent is still walking, skip LLM decisions this tick
         if state.path:
-            next_tile = state.path.pop(0)
-            state.coord = next_tile
-            await self._emit_agent_update(agent_name, state)
-            return  # movement tick: no decide/converse call this tick
+            return
 
         # 3. CONVERSATION PHASE: check nearby agents, attempt one conversation per tick
         if perception.nearby_agents:

@@ -5,7 +5,7 @@ import backend.config as cfg
 router = APIRouter()
 
 
-@router.get("/health")
+@router.get("/api/health")
 async def health_check():
     """Returns application health status and provider availability."""
     return {

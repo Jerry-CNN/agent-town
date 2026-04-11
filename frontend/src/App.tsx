@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSimulationStore } from "./store/simulationStore";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { Layout } from "./components/Layout";
@@ -8,14 +8,14 @@ import type { ProviderConfig } from "./types";
 
 function App() {
   const providerConfig = useSimulationStore((s) => s.providerConfig);
-  const setProviderConfig = useSimulationStore((s) => s.setProviderConfig);
   const selectedAgentId = useSimulationStore((s) => s.selectedAgentId);
 
   const [ollamaAvailable, setOllamaAvailable] = useState(true);
 
-  // On mount: re-hydrate provider config from localStorage (INF-01)
-  // T-03-03: wrap in try/catch; validate schema before trusting
+  const hasHydrated = useRef(false);
   useEffect(() => {
+    if (hasHydrated.current) return;
+    hasHydrated.current = true;
     try {
       const raw = localStorage.getItem("agenttown_provider");
       if (raw) {
@@ -29,44 +29,34 @@ function App() {
             (parsed as ProviderConfig).provider === "openrouter"
           )
         ) {
-          setProviderConfig(parsed as ProviderConfig);
+          useSimulationStore.getState().setProviderConfig(parsed as ProviderConfig);
         }
       }
-    } catch {
-      // Invalid JSON or schema — treat as unconfigured, show modal
-    }
-  }, [setProviderConfig]);
+    } catch {}
+  }, []);
 
-  // On mount: check Ollama availability via /api/health
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const res = await fetch("/api/health");
-        if (res.ok) {
+        if (res.ok && !cancelled) {
           const data = await res.json();
-          const ollamaStatus: boolean =
-            data?.provider_status?.ollama === true;
-          setOllamaAvailable(ollamaStatus);
+          setOllamaAvailable(data?.provider_status?.ollama === true);
         }
       } catch {
-        // Backend not reachable — assume Ollama unavailable
-        setOllamaAvailable(false);
+        if (!cancelled) setOllamaAvailable(false);
       }
     })();
+    return () => { cancelled = true; };
   }, []);
 
-  // Connect to backend WebSocket — handles reconnect gracefully when unavailable
   useWebSocket("ws://localhost:8000/ws");
 
   return (
     <>
-      {/* First-visit setup modal — blocks UI until provider is configured */}
       {providerConfig === null && <ProviderSetup />}
-
-      {/* Non-blocking Ollama availability banner */}
       <OllamaStatusBanner ollamaAvailable={ollamaAvailable} />
-
-      {/* Main layout */}
       <Layout selectedAgentId={selectedAgentId} />
     </>
   );

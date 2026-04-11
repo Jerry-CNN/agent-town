@@ -27,7 +27,9 @@ FALLBACK_AGENT_ACTION = AgentAction(
 )
 
 # instructor wraps litellm.acompletion — same interface across providers
-_client = instructor.from_litellm(litellm.acompletion)
+# Use JSON mode for Ollama compatibility: tool-calling mode causes Llama 3.1
+# to stringify arrays instead of producing valid JSON arrays.
+_client = instructor.from_litellm(litellm.acompletion, mode=instructor.Mode.JSON)
 
 
 def _resolve_model(provider_config: ProviderConfig) -> tuple[str, dict]:

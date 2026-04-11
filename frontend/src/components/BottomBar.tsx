@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useSimulationStore, getSendMessage } from "../store/simulationStore";
 import type { WSMessageType } from "../types";
 
@@ -6,12 +6,11 @@ export function BottomBar() {
   const isPaused = useSimulationStore((state) => state.isPaused);
   const providerConfig = useSimulationStore((state) => state.providerConfig);
   const agents = useSimulationStore((state) => state.agents);
+  const agentKeys = useMemo(() => Object.keys(agents), [agents]);
 
   const [eventText, setEventText] = useState("");
   const [deliveryMode, setDeliveryMode] = useState<"broadcast" | "whisper">("broadcast");
   const [whisperTarget, setWhisperTarget] = useState("");
-
-  const agentKeys = Object.keys(agents);
 
   function handlePauseResume() {
     const send = getSendMessage();
