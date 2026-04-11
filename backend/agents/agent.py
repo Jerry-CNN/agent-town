@@ -38,6 +38,10 @@ class Agent:
     current_activity: str = ""
     schedule: list[ScheduleEntry] = field(default_factory=list)
 
+    # --- Per-sector gating state (D-08, Phase 9) ---
+    last_sector: str | None = None
+    had_new_perceptions: bool = True
+
     # --- D-04: Cognition wrappers (thin delegation) ---
 
     def perceive(self, maze: "Maze", all_agents: dict) -> "PerceptionResult":

@@ -5,7 +5,7 @@ into a running simulation loop with concurrent agent processing, pause/resume
 control, and per-agent exception isolation.
 
 Design decisions implemented here:
-  - D-01: TICK_INTERVAL = 5 seconds (within the 5-10s range, chosen for responsiveness)
+  - D-04: Adaptive tick interval based on LLM latency rolling window (Phase 9)
   - D-02: All agents run concurrently via asyncio.TaskGroup (Python 3.11+)
   - D-03: Daily schedules generated for all agents before first tick in initialize()
   - D-07: Pause uses asyncio.Event flag; tick loop blocks on Event.wait()
@@ -15,8 +15,8 @@ Design decisions implemented here:
   - T-04-02: Each agent's initialize step isolated; single failure logged, not fatal
   - Pitfall 1 (04-RESEARCH.md): asyncio.TaskGroup exception handling — agent steps
     catch their own exceptions so sibling tasks are never cancelled
-  - Pitfall 5: asyncio.wait_for(timeout=TICK_INTERVAL*2) skips agents whose LLM
-    calls exceed 2x tick interval
+  - Pitfall 5: asyncio.wait_for(timeout=max(tick_interval*2, 120)) skips agents
+    whose LLM calls exceed 2x tick interval; 120s floor prevents cold-start timeouts
 
 Reference: GenerativeAgentsCN/generative_agents/modules/run.py (adapted for async)
 """
@@ -33,12 +33,9 @@ from backend.agents.cognition.perceive import perceive
 from backend.agents.cognition.decide import decide_action, _extract_known_locations
 from backend.agents.cognition.plan import generate_daily_schedule
 from backend.agents.memory.store import add_memory, reset_simulation
+from backend.gateway import get_adaptive_tick_interval
 
 logger = logging.getLogger(__name__)
-
-# D-01: Tick interval in seconds. Within the 5-10s decision range from D-01.
-# Actual tick duration is max(TICK_INTERVAL, slowest_agent_LLM_time) per D-02.
-TICK_INTERVAL: int = 30
 
 
 class SimulationEngine:
@@ -103,6 +100,11 @@ class SimulationEngine:
 
         # Load buildings once at init — never per tick (anti-pattern)
         self._buildings: dict[str, Building] = load_buildings()
+
+    @property
+    def tick_interval(self) -> float:
+        """Adaptive tick interval per D-04: max(10, avg_latency * 1.5)."""
+        return get_adaptive_tick_interval(min_interval=10.0)
 
     async def initialize(self) -> None:
         """Prepare agent states and generate daily schedules (D-03).
@@ -216,7 +218,15 @@ class SimulationEngine:
                 self._last_ejection_hour = self._sim_hour
                 await self._eject_agents_from_closed_buildings()
 
-            await asyncio.sleep(TICK_INTERVAL)
+            # Run all agent steps concurrently (D-02)
+            async with asyncio.TaskGroup() as tg:
+                for name, agent in self._agents.items():
+                    tg.create_task(self._agent_step_safe(name, agent))
+            self._tick_count += 1
+
+            current_tick = self.tick_interval
+            logger.debug("Tick %d complete, sleeping %.1fs (adaptive)", self._tick_count, current_tick)
+            await asyncio.sleep(current_tick)
 
     async def _agent_step_safe(self, agent_name: str, agent: Agent) -> None:
         """Per-agent step with full exception isolation (T-04-01).
@@ -230,15 +240,20 @@ class SimulationEngine:
             agent:      The agent object.
         """
         try:
+            # Codex P1-3 fix: 120s cold-start floor — at cold start tick_interval=10,
+            # so tick_interval*2=20s which is not enough for 4+ LLM calls. The floor
+            # ensures the agent step never times out before any latency is recorded.
+            timeout = max(self.tick_interval * 2, 120)
             await asyncio.wait_for(
                 self._agent_step(agent_name, agent),
-                timeout=max(TICK_INTERVAL * 4, 120),
+                timeout=timeout,
             )
         except asyncio.TimeoutError:
+            timeout = max(self.tick_interval * 2, 120)
             logger.warning(
-                "Agent %s step timed out after %ds — skipping tick",
+                "Agent %s step timed out after %.0fs — skipping tick",
                 agent_name,
-                max(TICK_INTERVAL * 4, 120),
+                timeout,
             )
         except Exception as exc:
             # T-04-01: Critical — absorb ALL exceptions so sibling agents are never cancelled
@@ -550,4 +565,5 @@ class SimulationEngine:
             ],
             "simulation_status": "running" if self._running.is_set() else "paused",
             "tick_count": self._tick_count,
+            "tick_interval": self.tick_interval,
         }
