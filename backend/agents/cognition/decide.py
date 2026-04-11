@@ -26,8 +26,7 @@ Reference: GenerativeAgentsCN generative_agents/modules/agent.py _determine_acti
 import logging
 
 from backend.gateway import complete_structured
-from backend.schemas import AgentAction, AgentScratch, AgentSpatial, PerceptionResult, ArenaAction
-from backend.schemas.agent import ArenaAction  # noqa: F811 — explicit local import for clarity
+from backend.schemas import AgentAction, ArenaAction, AgentScratch, AgentSpatial, PerceptionResult
 from backend.agents.memory.retrieval import retrieve_memories
 from backend.prompts.action_decide import action_decide_prompt
 from backend.prompts.arena_decide import arena_decide_prompt
