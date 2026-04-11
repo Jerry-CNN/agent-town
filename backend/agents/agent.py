@@ -58,8 +58,16 @@ class Agent:
             all_agents=all_agents,
         )
 
-    async def decide(self, simulation_id: str, perception, **kwargs):
-        """Delegate to cognition.decide.decide_action() with self fields."""
+    async def decide(self, simulation_id: str, perception, **kwargs) -> "AgentAction | None":
+        """Delegate to cognition.decide.decide_action() with self fields.
+
+        Returns AgentAction or None (None = gating skip per D-08, Plan 09-02).
+        Caller interprets None as "keep current action" — zero LLM cost for
+        ticks where the agent's sector, perceptions, and schedule are all stable.
+
+        Extra kwargs (last_sector, new_perceptions, schedule_changed) are forwarded
+        to decide_action to support the per-sector gating logic (Codex P2-7).
+        """
         from backend.agents.cognition.decide import decide_action
         return await decide_action(
             simulation_id=simulation_id,
@@ -69,6 +77,7 @@ class Agent:
             current_activity=self.current_activity,
             perception=perception,
             current_schedule=self.schedule,
+            **kwargs,
         )
 
     async def converse(

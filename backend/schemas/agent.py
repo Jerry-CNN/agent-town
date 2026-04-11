@@ -1,8 +1,8 @@
 """Agent-domain Pydantic schemas for Agent Town backend.
 
-Contains: AgentAction, AgentScratch, AgentSpatial, AgentConfig
+Contains: AgentAction, ArenaAction, AgentScratch, AgentSpatial, AgentConfig
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AgentAction(BaseModel):
@@ -10,6 +10,17 @@ class AgentAction(BaseModel):
     destination: str
     activity: str
     reasoning: str
+
+
+class ArenaAction(BaseModel):
+    """Arena-level destination choice within a sector (D-07, Plan 09-02).
+
+    After an agent picks a sector (e.g. "cafe"), this schema captures the
+    arena-level pick (e.g. "seating" vs "kitchen"). Only used for sectors
+    with multiple arenas (D-09: skip arena call for single-room sectors).
+    """
+    arena: str = Field(..., description="The specific area within the sector to go to")
+    reasoning: str = Field(default="", description="Brief reasoning for arena choice")
 
 
 class AgentScratch(BaseModel):

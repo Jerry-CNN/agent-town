@@ -153,6 +153,27 @@ async def test_agent_decide_delegates_with_correct_args():
     assert result is mock_action
 
 
+@pytest.mark.asyncio
+async def test_agent_decide_passes_through_none():
+    """Test 12 (Codex P2-7): Agent.decide() return type is AgentAction | None.
+
+    When decide_action returns None (per-sector gating skip, D-08), Agent.decide()
+    passes None through to the caller unchanged.
+    """
+    from backend.agents.agent import Agent
+    from backend.schemas import PerceptionResult
+
+    config = _make_agent_config("Alice", (5, 5))
+    agent = Agent(name="Alice", config=config, coord=(5, 5), current_activity="working")
+    perception = PerceptionResult(nearby_events=[], nearby_agents=[], location="park")
+
+    with patch("backend.agents.cognition.decide.decide_action",
+               new_callable=AsyncMock, return_value=None):
+        result = await agent.decide(simulation_id="sim-01", perception=perception)
+
+    assert result is None
+
+
 # ---------------------------------------------------------------------------
 # Test 4: converse() orchestration
 # ---------------------------------------------------------------------------

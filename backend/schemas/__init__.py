@@ -9,6 +9,7 @@ after the schema split. Import from the domain-specific submodule for new code:
 """
 from backend.schemas.agent import (
     AgentAction,
+    ArenaAction,
     AgentScratch,
     AgentSpatial,
     AgentConfig,
@@ -37,6 +38,7 @@ from backend.schemas.ws import (
 __all__ = [
     # agent domain
     "AgentAction",
+    "ArenaAction",
     "AgentScratch",
     "AgentSpatial",
     "AgentConfig",
