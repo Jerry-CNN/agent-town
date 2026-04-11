@@ -353,15 +353,24 @@ class SimulationEngine:
         )
 
         # Resolve destination to tile coordinates and compute BFS path (D-09, D-10)
+        path_set = False
         if action.destination != "idle":
             dest_coord = self.maze.resolve_destination(action.destination)
             if dest_coord is not None:
                 path = self.maze.find_path(agent.coord, dest_coord)
                 # Skip first element (current position) so first pop moves to next tile
-                agent.path = path[1:] if len(path) > 1 else []
+                if len(path) > 1:
+                    agent.path = path[1:]
+                    path_set = True
 
-        # Update activity and broadcast state change
-        agent.current_activity = action.activity
+        # Only update activity if destination was reachable, or agent chose "idle"
+        if path_set or action.destination == "idle":
+            agent.current_activity = action.activity
+        else:
+            logger.debug(
+                "Agent %s destination '%s' unreachable — keeping current activity",
+                agent_name, action.destination,
+            )
         await self._emit_agent_update(agent_name, agent)
 
         # Store action memory for future perception and decision context
