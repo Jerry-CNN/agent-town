@@ -8,6 +8,16 @@ A web-based generative agents playground where users watch AI-powered characters
 
 Users can type any event and immediately see AI agents respond to it in a living, breathing town — the magic is watching emergent behavior unfold.
 
+## Current Milestone: v1.1 Architecture & Polish
+
+**Goal:** Refactor the codebase to proper OOP abstractions, fix the visual experience, and bring agent behavior closer to the reference implementation.
+
+**Target features:**
+- Backend OOP refactoring — Agent class, Building/Location class, Event class with proper lifecycle
+- UI/visual overhaul — building walls, readable text, map looks like an actual town
+- LLM call optimization — 3-level decisions, conversation gating, smarter tick timing
+- Agent behavior fidelity — reflection system, relationship tracking, reference repo parity
+
 ## Requirements
 
 ### Validated
@@ -21,24 +31,25 @@ Users can type any event and immediately see AI agents respond to it in a living
 - [x] Agents retrieve relevant memories when making decisions (composite scoring retrieval) — Validated in Phase 3: Agent Cognition
 - [x] Agents initiate multi-turn conversations with nearby agents based on context — Validated in Phase 3: Agent Cognition
 - [x] Conversations affect agent schedules (agents revise plans after chatting) — Validated in Phase 3: Agent Cognition
+- [x] 2D tile-map town rendered in the browser with agents visible as sprites — Validated in v1.0
+- [x] User can type a text event and choose delivery mode (broadcast/whisper) — Validated in v1.0
+- [x] Broadcast events perceived by all agents instantly — Validated in v1.0
+- [x] Whispered events spread organically through agent-to-agent conversations — Validated in v1.0
+- [x] Simulation runs in real-time with agents acting every few seconds — Validated in v1.0
+- [x] User configures their own LLM provider and API key — Validated in v1.0
+- [x] Fresh simulation by default — Validated in v1.0
+- [x] Real-time feed showing agent actions and conversations — Validated in v1.0
 
 ### Active
 
-- [ ] 2D tile-map town rendered in the browser with agents visible as sprites
-- [ ] Agents perceive nearby events and other agents, make LLM-powered decisions
-- [ ] Memory system: agents remember experiences with recency/relevance/importance weighting
-- [ ] Agents initiate conversations with each other based on proximity and context
-- [ ] Reflection system: agents form higher-level insights from accumulated memories
-- [ ] User can type a text event and choose delivery mode (broadcast to all OR whisper to one agent)
-- [ ] Broadcast events are perceived by all agents instantly
-- [ ] Whispered events spread organically through agent-to-agent conversations
-- [ ] Simulation runs in real-time with agents acting every few seconds
-- [ ] Custom town map with thematic locations (stock exchange, wedding hall, park, homes, shops, etc.)
-- [ ] User configures their own LLM provider and API key (OpenAI, OpenRouter, Anthropic, Ollama, etc.)
-- [ ] User chooses how many agents to spawn when starting a simulation
-- [ ] Fresh simulation by default; optional save/load for persistence across sessions
-- [ ] Real-time feed showing agent actions, conversations, and internal thoughts
-- [ ] Single-user per simulation instance (architecture supports future multiplayer)
+- [ ] Backend refactored to OOP: Agent class (config + state + cognition methods), Building class (walls, properties), Event class (lifecycle, propagation)
+- [ ] Buildings have visible walls on the map; agents cannot walk through them
+- [ ] Text labels (agent names, activities, sector names) are readable at default zoom
+- [ ] LLM decisions use 3-level resolution (sector → arena → object) matching reference repo
+- [ ] Conversation gating: LLM check before initiating conversations
+- [ ] Conversation termination: agents detect repetition and end conversations early
+- [ ] Reflection system: agents form higher-level insights when poignancy threshold is crossed
+- [ ] Tick timing optimized for faster agent responsiveness
 
 ### Out of Scope
 
@@ -47,6 +58,7 @@ Users can type any event and immediately see AI agents respond to it in a living
 - User-created custom maps — ship one good map, extensibility later
 - Voice or audio — text-only interactions
 - Hosted LLM — users bring their own API keys
+- Agent subclassing / polymorphism — OOP is for structural clarity; all agents run same code paths with personality from LLM prompts
 
 ## Context
 
@@ -104,4 +116,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-10 after Phase 3 completion*
+*Last updated: 2026-04-10 after milestone v1.1 started*
