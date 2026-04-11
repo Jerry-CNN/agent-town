@@ -265,16 +265,14 @@ class TestDecideActionOpenLocations:
             return AgentAction(destination="park", activity="relaxing", reasoning="test")
 
         scratch = AgentScratch(
-            name="Alice",
             age=30,
             innate="warm",
-            learned="friendly",
-            currently="idle",
+            learned="Alice is a friendly local",
             lifestyle="morning person",
-            living_area="home-alice",
+            daily_plan="wake up, go to park, return home",
         )
         spatial = AgentSpatial(
-            name="Alice",
+            address={"living_area": ["agent-town", "home-alice", "bedroom"]},
             tree={"agent-town": {"park": {}, "cafe": {}, "stock-exchange": {}}},
         )
         perception = PerceptionResult(
@@ -316,16 +314,14 @@ class TestDecideActionOpenLocations:
             return AgentAction(destination="park", activity="relaxing", reasoning="test")
 
         scratch = AgentScratch(
-            name="Bob",
             age=40,
             innate="curious",
-            learned="analytical",
-            currently="idle",
+            learned="Bob is an analytical thinker",
             lifestyle="night owl",
-            living_area="home-bob",
+            daily_plan="stay up late, visit stock exchange, return home",
         )
         spatial = AgentSpatial(
-            name="Bob",
+            address={"living_area": ["agent-town", "home-bob", "bedroom"]},
             tree={"agent-town": {"park": {}, "stock-exchange": {}, "cafe": {}}},
         )
         perception = PerceptionResult(

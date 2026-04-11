@@ -125,6 +125,27 @@ class Building:
     closes: int   # hour (0-23), 24 means midnight/never closes
     purpose: str  # tag: "food", "finance", "social", "leisure", "residential", "work", "retail"
 
+    def is_open(self, sim_hour: int) -> bool:
+        """Return True if the building is open at the given simulation hour.
+
+        Handles three cases:
+        - closes=24: always open (parks, homes)
+        - opens < closes: standard range (e.g., 9-17)
+        - opens >= closes: midnight wrap-around (e.g., 22-4)
+
+        Args:
+            sim_hour: Current simulation hour (0-23).
+
+        Returns:
+            True if the building accepts visitors at sim_hour.
+        """
+        if self.closes == 24:
+            return True
+        if self.opens < self.closes:
+            return self.opens <= sim_hour < self.closes
+        # Midnight wrap-around: open from opens until closes crosses midnight
+        return sim_hour >= self.opens or sim_hour < self.closes
+
 
 def load_buildings() -> dict[str, "Building"]:
     """Load Building metadata from buildings.json, indexed by sector name.

@@ -52,6 +52,7 @@ async def decide_action(
     current_activity: str,
     perception: PerceptionResult,
     current_schedule: list,
+    open_locations: list[str] | None = None,
 ) -> AgentAction:
     """Decide the agent's next action using LLM with perception and memory context.
 
@@ -68,13 +69,23 @@ async def decide_action(
         perception:        Result of the latest perception sweep (perceive()).
         current_schedule:  Remaining schedule entries for the day (list of ScheduleEntry
                            or compatible dicts — used as reference context only).
+        open_locations:    Optional filtered list of currently-open destination sectors
+                           (D-08, BLD-03). When provided, replaces the full spatial tree
+                           extraction so agents only see open buildings as choices.
+                           When None, falls back to _extract_known_locations() as before
+                           (backward-compatible).
 
     Returns:
         AgentAction with destination (sector name), activity description, and reasoning.
         If all LLM retries fail, gateway returns FALLBACK_AGENT_ACTION (destination="idle").
     """
-    # Extract known sector names from agent's spatial tree for destination choices
-    known_locations = _extract_known_locations(agent_spatial.tree)
+    # Use open_locations if provided (D-08: filter closed buildings from decide prompt),
+    # otherwise fall back to full spatial tree (backward-compatible for existing callers).
+    known_locations = (
+        open_locations
+        if open_locations is not None
+        else _extract_known_locations(agent_spatial.tree)
+    )
 
     # Retrieve top 5 relevant memories for decision context (D-05, T-03-14)
     memories = await retrieve_memories(

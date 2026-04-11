@@ -27,10 +27,10 @@ import logging
 from typing import Callable
 
 from backend.schemas import AgentConfig, ScheduleEntry
-from backend.simulation.world import Maze
+from backend.simulation.world import Maze, load_buildings, Building
 from backend.agents.agent import Agent
 from backend.agents.cognition.perceive import perceive
-from backend.agents.cognition.decide import decide_action
+from backend.agents.cognition.decide import decide_action, _extract_known_locations
 from backend.agents.cognition.plan import generate_daily_schedule
 from backend.agents.memory.store import add_memory, reset_simulation
 
@@ -94,6 +94,15 @@ class SimulationEngine:
         self._broadcast_callback: Callable | None = broadcast_callback
 
         self._tick_count: int = 0
+
+        # Simulation time tracking (D-10): starts at 7am, advances 10 sim-minutes per tick
+        self._sim_hour: int = 7
+        self._sim_minute: int = 0
+        # Pitfall 5 guard: ejection runs exactly once per hour change, not every tick
+        self._last_ejection_hour: int = -1
+
+        # Load buildings once at init — never per tick (anti-pattern)
+        self._buildings: dict[str, Building] = load_buildings()
 
     async def initialize(self) -> None:
         """Prepare agent states and generate daily schedules (D-03).
@@ -206,6 +215,13 @@ class SimulationEngine:
                     )
 
             self._tick_count += 1
+
+            # Advance simulation time: 10 sim-minutes per tick (D-10)
+            self._sim_minute += 10
+            if self._sim_minute >= 60:
+                self._sim_minute = 0
+                self._sim_hour = (self._sim_hour + 1) % 24
+
             await asyncio.sleep(TICK_INTERVAL)
 
     async def _agent_step_safe(self, agent_name: str, agent: Agent) -> None:
@@ -315,6 +331,10 @@ class SimulationEngine:
                 break
 
         # 4. DECIDE PHASE (LLM — slow): choose next destination and activity
+        # Filter destinations to only open buildings (D-08, BLD-03)
+        all_locations = _extract_known_locations(config.spatial.tree)
+        open_locs = [loc for loc in all_locations if self._is_location_open(loc)]
+
         action = await decide_action(
             simulation_id=self.simulation_id,
             agent_name=agent_name,
@@ -323,6 +343,7 @@ class SimulationEngine:
             current_activity=agent.current_activity,
             perception=perception,
             current_schedule=agent.schedule,
+            open_locations=open_locs,
         )
 
         # Resolve destination to tile coordinates and compute BFS path (D-09, D-10)
@@ -347,6 +368,23 @@ class SimulationEngine:
             memory_type="action",
             importance=3,
         )
+
+    def _is_location_open(self, sector: str) -> bool:
+        """Return True if sector has no Building entry or is currently open.
+
+        Unknown sectors (not in buildings.json) are always considered accessible —
+        the maze may have non-building destinations like roads.
+
+        Args:
+            sector: Sector name without world prefix (e.g. "cafe", "stock-exchange").
+
+        Returns:
+            True if agents can navigate to this sector right now.
+        """
+        building = self._buildings.get(sector)
+        if building is None:
+            return True  # unknown sectors are always accessible
+        return building.is_open(self._sim_hour)
 
     async def _emit_agent_update(self, agent_name: str, agent: Agent) -> None:
         """Broadcast agent position and activity to all connected clients.
