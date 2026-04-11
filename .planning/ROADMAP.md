@@ -1,7 +1,7 @@
 # Roadmap: Agent Town
 
 **Created:** 2026-04-08
-**Updated:** 2026-04-10 (v1.1 milestone added)
+**Updated:** 2026-04-11 (Phase 9 plans created)
 **Granularity:** Standard
 
 ---
@@ -137,13 +137,13 @@ Plans:
 
 ---
 
-### 🚧 v1.1 Architecture & Polish (In Progress)
+### v1.1 Architecture & Polish (In Progress)
 
 **Milestone Goal:** Refactor the codebase to proper OOP abstractions, fix the visual experience, and optimize LLM call patterns.
 
 - [ ] **Phase 7: OOP Foundation** - Agent/Building/Event classes replace scattered dicts; schemas.py split into domain-grouped modules
 - [ ] **Phase 8: Visual & Building Behavior** - Building walls visible on map with collision; agent text readable at default zoom; buildings respect operating hours
-- [ ] **Phase 9: LLM Optimization** - 3-level destination resolution, 10s tick interval, conversation repetition detection, semaphore concurrency control
+- [ ] **Phase 9: LLM Optimization** - 2-level destination resolution, adaptive tick interval, conversation repetition detection, semaphore concurrency control, OpenRouter default
 
 ### Planned: v1.2 Agent Behavior (after v1.1)
 
@@ -194,7 +194,7 @@ Plans:
 ---
 
 ### Phase 9: LLM Optimization
-**Goal**: Agent destination decisions use 3-level sector-arena-object resolution; the tick interval is 10 seconds; conversations self-terminate on detected repetition; concurrent LLM calls are bounded by a semaphore.
+**Goal**: Agent destination decisions use 2-level sector-arena resolution with per-sector gating; the tick interval adapts to LLM latency (minimum 10s); conversations self-terminate on detected repetition; concurrent LLM calls are bounded by a semaphore; OpenRouter with Kimi K2.5 is the default provider.
 **Depends on**: Phase 7
 **Requirements**: LLM-01, LLM-02, LLM-03, LLM-04
 **Success Criteria** (what must be TRUE):
@@ -202,8 +202,13 @@ Plans:
   2. The simulation tick interval is 10 seconds; agents visibly act more frequently than in v1.0 and `AGENT_STEP_TIMEOUT` is updated to `TICK_INTERVAL * 2` (20s) to match.
   3. A conversation between two agents whose last two exchanges are semantically similar terminates early and logs "conversation ended (repetition)" to the activity feed.
   4. With 10 agents running concurrent LLM calls, `asyncio.Semaphore(8)` prevents more than 8 simultaneous in-flight calls; a debug log confirms semaphore acquisition/release per call.
-**Plans**: TBD
+**Plans**: 3 plans
 **UI hint**: no
+
+Plans:
+- [ ] 09-01-PLAN.md — Semaphore concurrency control in gateway.py, latency tracking, adaptive tick interval in engine.py, Agent gating fields (LLM-04, LLM-02)
+- [ ] 09-02-PLAN.md — 2-level decision cascade (sector -> arena) with per-sector gating in decide.py, conversation repetition detection in converse.py (LLM-01, LLM-03)
+- [ ] 09-03-PLAN.md — Engine gating/repetition wiring, OpenRouter/Kimi K2.5 defaults, settings button, tick interval UI display, human verification
 
 ---
 
@@ -256,7 +261,7 @@ Plans:
 |---|-------|------|--------------|-----------------|
 | 7 | OOP Foundation | Agent/Building/Event classes; SimulationEngine on Agent objects; schemas split; WS backward compat | ARCH-01, ARCH-02, ARCH-03, BLD-01, EVTS-01, EVTS-02, EVTS-03 | 6 |
 | 8 | Visual & Building Behavior | Wall outlines, walkable collision, readable text, operating hours gating | BLD-02, BLD-03, VIS-01, VIS-02 | 4 |
-| 9 | LLM Optimization | 3-level resolution, 10s tick, conversation termination, semaphore | LLM-01, LLM-02, LLM-03, LLM-04 | 4 |
+| 9 | LLM Optimization | 2-level resolution, adaptive tick, conversation termination, semaphore, OpenRouter default | LLM-01, LLM-02, LLM-03, LLM-04 | 4 |
 
 ### v1.2 Agent Behavior (planned)
 
@@ -311,7 +316,7 @@ Plans:
 | 6. Event Injection | v1.0 | 2/2 | Complete | 2026-04-10 |
 | 7. OOP Foundation | v1.1 | 0/2 | Not started | - |
 | 8. Visual & Building Behavior | v1.1 | 0/3 | Not started | - |
-| 9. LLM Optimization | v1.1 | 0/? | Not started | - |
+| 9. LLM Optimization | v1.1 | 0/3 | Not started | - |
 | 10. Task & Perception Systems | v1.1 | 0/? | Not started | - |
 | 11. Reflection System | v1.1 | 0/? | Not started | - |
 | 12. Relationship Tracking | v1.1 | 0/? | Not started | - |
