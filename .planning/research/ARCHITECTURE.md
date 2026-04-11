@@ -1,537 +1,602 @@
 # Architecture Research
 
-**Domain:** LLM-powered agent simulation web app
-**Researched:** 2026-04-08
-**Confidence:** MEDIUM — core patterns HIGH (FastAPI + WebSocket + asyncio well-documented); specifics for generative-agent-style simulation inferred from reference paper + analogous systems
+**Domain:** Web-based Generative Agents Simulation — v1.1 OOP Refactor + Visual Polish
+**Researched:** 2026-04-10
+**Confidence:** HIGH (full codebase read, reference implementation cross-referenced)
 
 ---
 
-## Standard Architecture
+## Current Architecture (Baseline)
 
-### System Overview (ASCII diagram)
+The v1.0 codebase is functional but structured as a procedural simulation loop wrapped
+around static data containers. Understanding what exists is the prerequisite for all
+integration decisions below.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          BROWSER (React + Phaser 3)                         │
-│                                                                              │
-│  ┌──────────────────────┐   ┌───────────────────────────────────────────┐  │
-│  │   React UI Shell     │   │          Phaser 3 Canvas                  │  │
-│  │  - Event injection   │   │  - 2D tile map render (Tiled JSON)        │  │
-│  │  - Agent feed panel  │   │  - Sprite agents (animated)               │  │
-│  │  - Config / settings │   │  - Smooth position interpolation          │  │
-│  │  - LLM key entry     │   │  - Camera pan / zoom                      │  │
-│  └──────────┬───────────┘   └──────────────────┬────────────────────────┘  │
-│             │  React ↔ Phaser via EventEmitter  │                            │
-│             └──────────────────┬────────────────┘                           │
-│                                │ WebSocket (JSON messages)                  │
-└────────────────────────────────┼────────────────────────────────────────────┘
-                                 │
-                  ┌──────────────▼──────────────┐
-                  │     FastAPI Web Layer        │
-                  │  - WebSocket endpoint        │
-                  │  - REST: config, save/load   │
-                  │  - Connection manager        │
-                  │  - Session registry          │
-                  └──────────────┬──────────────┘
-                                 │ asyncio internal
-          ┌──────────────────────┼───────────────────────┐
-          │                      │                       │
-   ┌──────▼──────┐     ┌────────▼────────┐   ┌─────────▼──────────┐
-   │ Simulation  │     │  Event Bus      │   │  Session Store      │
-   │ Engine      │     │  (asyncio Queue │   │  (in-memory dict,   │
-   │             │     │   per session)  │   │   optional JSON     │
-   │ - Tick loop │     └────────┬────────┘   │   snapshots)        │
-   │ - World map │              │            └────────────────────┘
-   │ - BFS nav   │     ┌────────▼────────┐
-   │ - Agent mgr │     │   Agent Pool    │
-   └──────┬──────┘     │ (N concurrent   │
-          │            │  coroutines)    │
-          │            └────────┬────────┘
-          │                     │
-          │            ┌────────▼────────┐
-          │            │  Per-Agent      │
-          │            │  Cognition      │
-          │            │                 │
-          │            │  perceive →     │
-          │            │  plan →         │
-          │            │  react →        │
-          │            │  act →          │
-          │            │  reflect        │
-          │            └────────┬────────┘
-          │                     │
-   ┌──────▼─────────────────────▼──────────────┐
-   │               Support Layer                │
-   │                                            │
-   │  ┌─────────────────┐  ┌─────────────────┐ │
-   │  │  Memory System  │  │  LLM Gateway    │ │
-   │  │                 │  │                 │ │
-   │  │  ChromaDB/FAISS │  │  litellm        │ │
-   │  │  per-agent ns   │  │  - model select │ │
-   │  │  recency+rel    │  │  - semaphore    │ │
-   │  │  +importance    │  │    rate limit   │ │
-   │  └─────────────────┘  └─────────────────┘ │
-   └────────────────────────────────────────────┘
-```
-
-### Component Responsibilities (table)
-
-| Component | Responsibility | Owns | Does NOT Own |
-|-----------|---------------|------|--------------|
-| **React UI Shell** | User input, config, sidebar feed, event injection form | LLM key config, event submission | Game canvas rendering, agent state |
-| **Phaser 3 Canvas** | 2D tile map + sprite rendering, camera, animation | Visual representation, interpolated positions | Agent logic, WebSocket connection |
-| **FastAPI Web Layer** | HTTP REST + WebSocket, session lifecycle, routing | Connection registry, session ID generation | Simulation logic |
-| **Connection Manager** | Track active WebSocket connections per session | Broadcast queue flush | Simulation state |
-| **Simulation Engine** | Tick clock, world grid, agent scheduling, BFS pathfinding | Authoritative world state | LLM calls, rendering |
-| **Agent Pool** | Per-agent coroutine lifecycle, concurrency | Task creation/cancellation | Tick pacing (defers to engine) |
-| **Agent Cognition** | perceive → plan → react → act → reflect cycle | Prompt construction, LLM response parsing | Memory storage (delegates to Memory System) |
-| **Memory System** | Vector store per agent, scored retrieval, memory insertion | Embeddings, ChromaDB/FAISS collections | Cognition decisions |
-| **LLM Gateway** | Unified call interface, model routing, rate limiting | litellm wrapper, semaphore, retry/fallback | Prompt content |
-| **Event Bus** | asyncio.Queue per session for simulation events | In-process pub/sub | Persistence |
-| **Session Store** | Serialized simulation snapshot (JSON) | Agent state, positions, memories | Real-time streaming |
-
----
-
-## Recommended Project Structure
+### Backend Module Map
 
 ```
-agent-town/
-├── backend/
-│   ├── main.py                        # FastAPI app entry, lifespan hooks
-│   ├── api/
-│   │   ├── ws.py                      # WebSocket endpoint, connection manager
-│   │   ├── sessions.py                # REST: create/save/load simulation
-│   │   └── config.py                  # REST: LLM provider key validation
-│   ├── simulation/
-│   │   ├── engine.py                  # Tick loop, world clock, agent scheduling
-│   │   ├── world.py                   # TileGrid, collision map, location hierarchy
-│   │   ├── pathfinding.py             # BFS on tile grid, walkability cache
-│   │   └── events.py                  # Event types, broadcast/whisper routing
-│   ├── agents/
-│   │   ├── agent.py                   # Agent dataclass, per-agent coroutine entry
-│   │   ├── cognition/
-│   │   │   ├── perceive.py            # Collect nearby events/agents from world grid
-│   │   │   ├── plan.py                # Daily schedule, hourly decomposition
-│   │   │   ├── react.py               # Reaction decision (act vs re-plan)
-│   │   │   ├── act.py                 # Emit action, update position intent
-│   │   │   └── reflect.py             # Reflection trigger, insight synthesis
-│   │   └── memory/
-│   │       ├── store.py               # ChromaDB/FAISS wrapper, per-agent namespace
-│   │       ├── retrieval.py           # Scored retrieval (recency × relevance × importance)
-│   │       └── embedding.py           # Embed text via LLM or local model
-│   ├── llm/
-│   │   ├── gateway.py                 # litellm wrapper, model routing per call type
-│   │   ├── rate_limiter.py            # asyncio.Semaphore, per-provider limits
-│   │   └── prompts/                   # Prompt templates per cognition step
-│   │       ├── perceive.txt
-│   │       ├── plan.txt
-│   │       ├── reflect.txt
-│   │       └── ...
-│   ├── persistence/
-│   │   ├── snapshot.py                # Serialize/deserialize full simulation state
-│   │   └── storage.py                 # File-based save/load (JSON + vector store dump)
-│   └── config.py                      # Pydantic settings, env vars
-│
-├── frontend/
-│   ├── src/
-│   │   ├── App.tsx                    # React root, WebSocket provider
-│   │   ├── ws/
-│   │   │   └── useSimulation.ts       # WebSocket hook, message dispatch
-│   │   ├── ui/
-│   │   │   ├── EventPanel.tsx         # Event injection input
-│   │   │   ├── AgentFeed.tsx          # Real-time thought/action log
-│   │   │   ├── ConfigModal.tsx        # LLM provider + key settings
-│   │   │   └── AgentCount.tsx         # Spawn config
-│   │   ├── game/
-│   │   │   ├── PhaserGame.tsx         # React wrapper, Phaser instance ref
-│   │   │   ├── scenes/
-│   │   │   │   ├── TownScene.ts       # Main scene: tilemap + sprites
-│   │   │   │   └── PreloadScene.ts    # Asset loading
-│   │   │   ├── entities/
-│   │   │   │   └── AgentSprite.ts     # Sprite + name label + interpolation
-│   │   │   └── EventBridge.ts         # EventEmitter between React and Phaser
-│   │   └── store/
-│   │       └── simulation.ts          # Zustand store: agent states, event log
-│   └── public/
-│       └── assets/
-│           ├── tilemaps/              # Tiled JSON map files
-│           ├── tilesets/              # Tile sprite sheets
-│           └── sprites/               # Agent character sprites
-│
-└── data/
-    └── saves/                         # JSON snapshots of saved simulations
+backend/
+├── main.py                     # FastAPI app + lifespan (wires engine + manager)
+├── gateway.py                  # LLM singleton: instructor + LiteLLM
+├── config.py                   # Runtime provider state (mutable singleton)
+├── schemas.py                  # ALL Pydantic models (flat file)
+├── simulation/
+│   ├── engine.py               # SimulationEngine + AgentState dataclass
+│   ├── world.py                # Tile + Maze classes (BFS, address index)
+│   ├── connection_manager.py   # WebSocket broadcast fan-out
+│   └── map_generator.py        # town.json builder (static data)
+├── agents/
+│   ├── loader.py               # load_all_agents() -> list[AgentConfig]
+│   ├── cognition/
+│   │   ├── perceive.py         # perceive() -- pure Python, no LLM
+│   │   ├── decide.py           # decide_action() -- 1 LLM call
+│   │   ├── converse.py         # attempt_conversation() + run_conversation()
+│   │   └── plan.py             # generate_daily_schedule() + decompose_hour()
+│   └── memory/
+│       ├── store.py            # ChromaDB add/score/reset -- asyncio.to_thread
+│       └── retrieval.py        # retrieve_memories() -- composite scoring
+├── prompts/                    # One file per prompt template
+│   ├── action_decide.py
+│   ├── conversation_start.py
+│   ├── conversation_turn.py
+│   ├── importance_score.py
+│   ├── schedule_init.py
+│   ├── schedule_decompose.py
+│   └── schedule_revise.py
+└── routers/
+    ├── ws.py                   # WebSocket endpoint
+    ├── agents.py               # REST: agent list
+    ├── llm.py                  # REST: provider config
+    └── health.py               # REST: health check
+```
+
+### Current Data Flow (Per-Tick)
+
+```
+SimulationEngine._tick_loop()
+    asyncio.TaskGroup: all agents in parallel
+        _agent_step_safe(name, state)
+            _agent_step(name, state)
+                perceive(coord, name, maze, all_agents_view)  -- pure Python
+                    -> PerceptionResult{nearby_agents, nearby_events, location}
+                if state.path: return   (movement handled by _movement_loop)
+                attempt_conversation(...)  -- 1 LLM call (ConversationDecision)
+                    if should_talk:
+                        run_conversation(...)  -- 2-8 LLM calls
+                        return
+                decide_action(...)  -- 1 LLM call (AgentAction)
+                    retrieve_memories(...)  -- ChromaDB query
+                    maze.resolve_destination(action.destination) -> coord
+                    maze.find_path(state.coord, dest_coord) -> path
+                add_memory(...) -- ChromaDB write
+                _emit_agent_update(name, state) -> broadcast callback
+```
+
+### Current State Ownership
+
+| Data | Where Held | Type |
+|------|-----------|------|
+| Agent personality | AgentConfig (Pydantic) | Static, loaded from JSON |
+| Agent runtime state | AgentState (dataclass) | Mutable, in _agent_states dict |
+| Conversation cooldowns | _conversation_cooldowns dict | Module-level in converse.py |
+| Memory | ChromaDB EphemeralClient | Async, per-simulation collection |
+| Tile grid + BFS | Maze instance | Shared reference in SimulationEngine |
+| WebSocket clients | ConnectionManager | Set of active WebSocket objects |
+| Provider config | config.state singleton | Mutable global |
+
+### Current Frontend Component Map
+
+```
+frontend/src/
+├── App.tsx                     # Root: ProviderSetup gate -> Layout
+├── main.tsx                    # React 19 entry
+├── store/simulationStore.ts    # Zustand store (agents, feed, WS state)
+├── hooks/useWebSocket.ts       # WS lifecycle + message dispatch
+├── types/index.ts              # Shared TypeScript interfaces
+├── data/town.json              # Static map (imported at build time)
+└── components/
+    ├── Layout.tsx              # Flex layout: MapCanvas | ActivityFeed | AgentInspector
+    ├── MapCanvas.tsx           # @pixi/react Application wrapper + auto-scale
+    ├── TileMap.tsx             # Static tile grid (colored rects + sector labels)
+    ├── AgentSprite.tsx         # Per-agent: circle + initial + activity + lerp
+    ├── AgentInspector.tsx      # Right panel: selected agent details
+    ├── ActivityFeed.tsx        # Bottom/side feed: WS event log
+    ├── BottomBar.tsx           # Event injection UI (broadcast/whisper)
+    ├── ProviderSetup.tsx       # LLM provider config gate
+    └── OllamaStatusBanner.tsx  # Ollama health indicator
 ```
 
 ---
 
-## Architectural Patterns
+## v1.1 Target: What Changes vs What Stays
 
-### Pattern 1: Tick-Driven Simulation with Concurrent Agent Coroutines
+### What STAYS Unchanged
 
-**What:** A central simulation engine advances a tick counter and signals all agents to run their cognition cycle. Each agent is an independent asyncio coroutine that yields at every LLM `await` call, letting other agents progress concurrently.
+These components are correct and are not touched by v1.1:
 
-**When:** Multi-agent simulation where agents are loosely coupled and can run in parallel within a tick.
+| Component | Why It Stays |
+|-----------|-------------|
+| gateway.py complete_structured() | LLM abstraction is correct. 3-level decision is a prompt/logic change, not a gateway change |
+| agents/memory/store.py | Memory storage is correct. Reflection adds calls to existing functions |
+| agents/memory/retrieval.py | Composite scoring is correct and paper-aligned |
+| simulation/connection_manager.py | WebSocket fan-out is correct |
+| simulation/map_generator.py | Map data generation is static |
+| config.py | Provider config singleton is correct |
+| All routers (ws.py, agents.py, health.py, llm.py) | No new endpoints; WS message contracts unchanged |
+| All prompt templates in prompts/ | Templates stay; new prompts are added alongside |
+| Frontend: useWebSocket.ts, simulationStore.ts, App.tsx, Layout.tsx, ProviderSetup.tsx, OllamaStatusBanner.tsx, BottomBar.tsx | No WS contract changes, no store schema changes |
+| Frontend: AgentInspector.tsx, ActivityFeed.tsx | Read from store only; unchanged unless store shape changes |
+
+### What CHANGES (Modified)
+
+| Component | What Changes | Why |
+|-----------|-------------|-----|
+| simulation/engine.py AgentState | Add reflection_poignancy: int field | Reflection needs accumulated poignancy across ticks |
+| simulation/engine.py _agent_step | Add reflection call after perceive; add 3-level decision routing | Reflection hook; 3-level decision replaces flat decide_action |
+| simulation/engine.py TICK_INTERVAL | Reduce from 30s toward 10s | Faster agent responsiveness; actual value tuned by LLM latency |
+| simulation/world.py Maze | Add sector-level arena address lookup support | 3-level decision needs to resolve sector:arena strings |
+| schemas.py | Add Event model, ReflectionInsight model, ThreeLevelAction model | New structured LLM output types |
+| agents/cognition/decide.py decide_action() | Replace flat sector choice with 3-level sequential LLM calls | Reference implementation fidelity |
+| agents/cognition/converse.py run_conversation() | Add early termination on repetition detection | Conversation termination feature |
+| frontend/src/components/TileMap.tsx | Add wall rendering: draw border lines around sector bounding boxes | Building walls visual |
+| frontend/src/types/index.ts | Add BuildingWall type if derived wall segments need typing | Depends on approach |
+
+### What is NEW (Additive)
+
+| New Component | Location | Purpose |
+|--------------|----------|---------|
+| agents/cognition/reflect.py | backend/agents/cognition/ | Reflection system: poignancy threshold triggers insight generation |
+| prompts/reflect_focus.py | backend/prompts/ | Prompt: "what are the 3 most salient questions based on memories?" |
+| prompts/reflect_insights.py | backend/prompts/ | Prompt: "what 5 insights can be inferred from these memories?" |
+| prompts/determine_sector.py | backend/prompts/ | 3-level decision: sector selection |
+| prompts/determine_arena.py | backend/prompts/ | 3-level decision: arena selection |
+| prompts/determine_object.py | backend/prompts/ | 3-level decision: object selection |
+| agents/relationships.py | backend/agents/ | In-memory relationship tracker (who has talked to whom, topic tags) |
+| frontend/src/components/BuildingOverlay.tsx | frontend/src/components/ | PixiJS layer that renders wall lines over TileMap |
+
+---
+
+## Integration Points (Detailed)
+
+### 1. Agent OOP Refactor: What Actually Changes
+
+The current split is AgentConfig (static Pydantic) + AgentState (mutable dataclass),
+both held in dicts inside SimulationEngine. The v1.1 "Agent class" consolidates these
+without changing the external interface that routers and WebSocket use.
+
+**Integration boundary:** SimulationEngine._agent_states dict changes from
+dict[str, AgentState] to dict[str, Agent]. Everything that currently calls
+state.coord, state.path, state.current_activity, state.config, state.schedule
+must be updated to use the new unified Agent object.
+
+**Callers that touch _agent_states or state:**
+
+- engine._agent_step() -- primary consumer, reads and mutates state fields
+- engine._movement_loop() -- reads state.path, writes state.coord
+- engine._emit_agent_update() -- reads state.coord, state.current_activity
+- engine.inject_event() -- reads state.path, clears it
+- engine.get_snapshot() -- reads state.coord, state.current_activity
+- engine.initialize() -- creates AgentState instances
+- converse.run_conversation() -- receives state.config.scratch and state.schedule as args (passed by value, no cascade refactor needed)
+
+**Refactor scope:** Contained to engine.py + new Agent class definition in a new file
+backend/agents/agent.py. No router or WebSocket schema changes.
+
+**Recommended Agent class structure:**
 
 ```python
-# engine.py
-class SimulationEngine:
-    def __init__(self, agents: list[Agent], tick_interval: float = 5.0):
-        self.agents = agents
-        self.tick_interval = tick_interval
-        self.tick = 0
-        self.running = False
-
-    async def run(self):
-        self.running = True
-        while self.running:
-            self.tick += 1
-            # All agents run their tick concurrently; LLM awaits yield control
-            await asyncio.gather(*[agent.run_tick(self.tick) for agent in self.agents])
-            await asyncio.sleep(self.tick_interval)
-
-# agent.py
 class Agent:
-    async def run_tick(self, tick: int):
-        percepts = await self.perceive()      # reads world grid, no LLM call
-        reaction = await self.react(percepts) # LLM call — yields here
-        action = await self.act(reaction)     # may include LLM call
-        await self.maybe_reflect(tick)        # LLM call only if threshold met
-        return action
+    # Static (from AgentConfig JSON)
+    name: str
+    config: AgentConfig        # kept as sub-object, not flattened
+
+    # Runtime (was AgentState fields)
+    coord: tuple[int, int]
+    path: list[tuple[int, int]]
+    current_activity: str
+    schedule: list[ScheduleEntry]
+
+    # New in v1.1
+    reflection_poignancy: int  # accumulated; reset to 0 after reflection fires
+    relationships: dict[str, str]  # agent_name -> relationship_note
 ```
 
-### Pattern 2: Event Bus (asyncio.Queue) for Decoupled Simulation Events
+Cognition functions (perceive, decide_action, attempt_conversation, etc.) keep their
+current function signatures -- they accept individual fields as arguments, not the Agent
+object. This avoids a cascade refactor across all cognition modules.
 
-**What:** Simulation events (agent moved, conversation started, user event injected) are pushed onto a session-scoped asyncio.Queue. A separate broadcaster coroutine drains the queue and sends WebSocket messages.
+### 2. Building Class: What It Actually Adds
 
-**When:** Prevents tight coupling between simulation logic and WebSocket transport; simulation doesn't know or care about the frontend.
+The reference implementation has no separate Building class -- buildings are groups of
+tiles with a shared sector address. The Maze.address_tiles dict already indexes
+sector -> set of tile coords.
+
+The v1.1 "Building class" is primarily for providing wall geometry to the frontend.
+
+**Data flow for building walls -- recommended approach (Option B, frontend-only):**
+
+The collision tile data is already in town.json. The frontend derives wall lines by
+detecting sector boundary tiles (tiles whose neighbor on any of the 4 cardinal directions
+is either a collision tile or a different sector). This is pure frontend geometry computed
+once at module load, matching the pattern of computeSectorBounds() in TileMap.tsx.
+
+BuildingOverlay.tsx does the computation at module load, draws wall line segments via
+g.moveTo / g.lineTo / g.stroke(). Zero backend changes required.
+
+If sector interiors need explicit wall metadata later, add a walls key to town.json at
+that point -- this is a one-time map authoring task, not an architecture change.
+
+### 3. Event Class: What It Actually Adds
+
+Currently events are stored directly as add_memory() calls with memory_type="event".
+The Tile._events dict exists in world.py but inject_event() bypasses it entirely -- events
+go straight to ChromaDB without touching the tile grid.
+
+**What an Event class buys for v1.1:**
+- Source tagging: "user_inject" vs "conversation" vs "reflection"
+- Expiry: events fade from Tile._events after N ticks
+- Tile-based event display on the frontend (future)
+
+**Recommended Event schema to add to schemas.py:**
 
 ```python
-# ws.py
-class ConnectionManager:
-    def __init__(self):
-        self.sessions: dict[str, asyncio.Queue] = {}
-        self.connections: dict[str, WebSocket] = {}
-
-    async def broadcaster(self, session_id: str):
-        queue = self.sessions[session_id]
-        ws = self.connections[session_id]
-        while True:
-            msg = await queue.get()
-            try:
-                await ws.send_json(msg)
-            except WebSocketDisconnect:
-                break
-
-# simulation/events.py — simulation pushes events without knowing about WS
-async def emit(session_id: str, event: dict, event_bus: dict[str, asyncio.Queue]):
-    await event_bus[session_id].put(event)
+class Event(BaseModel):
+    text: str
+    source: Literal["user_inject", "conversation", "observation", "reflection"]
+    importance: int              # 1-10
+    created_at: float
+    expires_at: float | None     # None = permanent; set for N-tick fade
+    target: str | None           # None = tile-based; agent name for whisper
 ```
 
-### Pattern 3: LLM Gateway with Model Routing and Semaphore Rate Limiting
+inject_event() in engine.py writes the Event to both Tile._events (for perception) and
+ChromaDB (for memory retrieval). The perception scan in perceive.py already reads
+Tile._events -- so injected events will surface in nearby_events for the first time.
 
-**What:** A single `llm_call(call_type, prompt, config)` function routes to cheap vs. expensive models based on call type, and uses an asyncio.Semaphore to cap simultaneous in-flight LLM requests (prevents API 429s and runaway cost).
+### 4. Three-Level Decision: What Changes in decide.py
 
-**When:** Always — without this, 10 agents each making 10 LLM calls per tick = 100 concurrent requests, which will hit rate limits.
+Currently decide_action() asks the LLM for a sector name in a single call. The reference
+_determine_action() makes three sequential LLM calls: sector -> arena -> object.
+
+**Integration in existing code:**
+
+The decide_action() function signature stays the same (returns AgentAction). Internally:
+- Call 1: determine_sector prompt -> sector name from agent's known sectors
+- Call 2: determine_arena prompt -> arena within that sector from agent_spatial.tree
+- Call 3: determine_object prompt -> object within that arena from agent_spatial.tree
+- Construct destination as "sector:arena" for Maze.resolve_destination()
+
+Maze.resolve_destination() currently only handles sector-level strings (key = world:sector).
+It needs to also accept arena-level strings (key = world:sector:arena). The address index
+already supports this -- Maze.address_tiles is indexed at both "world:sector" and
+"world:sector:arena" levels via Tile.get_addresses().
+
+**LLM call budget change:** +2 calls per decide tick per agent. For 8 agents this adds
+up to 16 additional LLM calls per tick -- the key cost driver for the optimization work.
+
+### 5. Reflection System: New Module
+
+The reference reflect() method fires when status["poignancy"] exceeds poignancy_max
+(typically 150). In v1.0, poignancy is not tracked at all.
+
+**Integration points:**
+
+1. PerceptionResult gets a new field poignancy_delta: int. perceive() returns a delta
+   based on a heuristic: non-idle event = +1, conversation event = +2. No LLM call.
+
+2. reflect.py new module:
+   - Input: agent_name, simulation_id, agent_scratch
+   - Retrieves top N recent memories via retrieve_memories()
+   - Calls reflect_focus prompt -> 3 salient questions (1 LLM call)
+   - For each question, retrieves focused memories and calls reflect_insights prompt (3 LLM calls)
+   - Stores each insight as add_memory(memory_type="thought", importance=scored)
+   - Returns (does not mutate agent directly)
+
+3. _agent_step() adds after perceive():
+   ```python
+   agent.reflection_poignancy += perception.poignancy_delta
+   if agent.reflection_poignancy >= POIGNANCY_THRESHOLD:
+       asyncio.create_task(reflect(agent.name, simulation_id, agent.config.scratch))
+       agent.reflection_poignancy = 0
+   ```
+
+   Reflection fires as a background task to avoid blocking the tick. Thought memories
+   are available for the next tick's memory retrieval.
+
+**POIGNANCY_THRESHOLD:** Start at 150 (reference value). Tune down if reflection never
+fires in practice with cheap models that assign low importance scores.
+
+### 6. Relationship Tracking: New Module
+
+The reference tracks chats per agent and uses them during reflection. In v1.0, relationship
+state is implicit in ChromaDB memories only.
+
+**Recommended structure:**
 
 ```python
-# llm/gateway.py
-import litellm
-import asyncio
+# backend/agents/relationships.py
+class RelationshipTracker:
+    _pairs: dict[frozenset[str], list[str]]  # pair -> list of conversation summaries
 
-CALL_TYPE_MODELS = {
-    "perceive":   "openai/gpt-4o-mini",    # cheap: routine classification
-    "plan":       "openai/gpt-4o-mini",    # cheap: schedule generation
-    "react":      "openai/gpt-4o",         # expensive: nuanced reaction
-    "reflect":    "openai/gpt-4o",         # expensive: synthesis
-    "converse":   "openai/gpt-4o-mini",    # cheap: dialogue turns
-}
-
-_semaphore = asyncio.Semaphore(20)  # max 20 concurrent LLM calls globally
-
-async def llm_call(call_type: str, prompt: str, user_config: dict) -> str:
-    model = CALL_TYPE_MODELS.get(call_type, "openai/gpt-4o-mini")
-    # Override model from user config if set
-    if override := user_config.get(f"model_{call_type}"):
-        model = override
-    async with _semaphore:
-        response = await litellm.acompletion(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            api_key=user_config["api_key"],
-            api_base=user_config.get("api_base"),  # for Ollama
-        )
-    return response.choices[0].message.content
+    def record(self, agent_a: str, agent_b: str, summary: str) -> None: ...
+    def get_history(self, agent_a: str, agent_b: str) -> list[str]: ...
 ```
 
-### Pattern 4: React-Phaser Bridge via EventEmitter
+**Wiring:** RelationshipTracker instance created in main.py lifespan, stored on app.state,
+passed to SimulationEngine constructor (same pattern as broadcast_callback). Engine passes
+it to converse.run_conversation() after conversations complete.
 
-**What:** React owns WebSocket state and dispatches messages into the Phaser game via a shared EventEmitter ref. Phaser never opens its own WebSocket — it receives data from React.
+### 7. Building Walls Rendering: Frontend Only
 
-**When:** When combining React UI (controls, panels) with Phaser canvas (rendering) — this prevents two separate WebSocket connections and keeps React as the single source of truth for server state.
+**Current state:** TileMap.tsx draws colored rectangles per sector bounding box. No wall
+lines exist.
+
+**Target state:** Each sector gets a visible border drawn as a line stroke over the
+background fill. Agents inside a building appear to be within walls.
+
+**BuildingOverlay.tsx approach:**
 
 ```typescript
-// game/EventBridge.ts
-import Phaser from "phaser";
-export const EventBridge = new Phaser.Events.EventEmitter();
+// Computed once at module load from town.json
+function computeWallLines(): WallSegment[] {
+  // For each sector, walk the perimeter tiles
+  // Return {x1, y1, x2, y2} segments forming building borders
+}
 
-// ws/useSimulation.ts (React hook)
-ws.onmessage = (e) => {
-  const msg = JSON.parse(e.data);
-  if (msg.type === "agent_moved") {
-    EventBridge.emit("agent_moved", msg.payload);
-  } else if (msg.type === "agent_thought") {
-    // update Zustand store → AgentFeed renders
-    simulationStore.getState().addThought(msg.payload);
-  }
-};
-
-// game/entities/AgentSprite.ts (Phaser scene)
-EventBridge.on("agent_moved", ({ agent_id, x, y }) => {
-  const sprite = this.agentSprites.get(agent_id);
-  // Tween for smooth interpolation between current and target position
-  this.tweens.add({ targets: sprite, x: x * TILE_SIZE, y: y * TILE_SIZE, duration: 800 });
-});
-```
-
-### Pattern 5: Per-Agent Memory Namespace (ChromaDB)
-
-**What:** Each agent gets an isolated ChromaDB collection or FAISS index keyed by `agent_id`. Retrieval uses a composite score: `recency × 0.5 + relevance × 3 + importance × 2`.
-
-**When:** Agents must not share memories. Namespace isolation prevents cross-contamination and allows per-agent memory dumps for save/load.
-
-```python
-# agents/memory/store.py
-import chromadb
-
-_chroma_client = chromadb.Client()
-
-def get_agent_collection(agent_id: str):
-    return _chroma_client.get_or_create_collection(f"agent_{agent_id}")
-
-async def add_memory(agent_id: str, content: str, importance: float, embedding: list[float]):
-    col = get_agent_collection(agent_id)
-    col.add(
-        documents=[content],
-        embeddings=[embedding],
-        metadatas=[{"importance": importance, "created_at": time.time(), "last_access": time.time()}],
-        ids=[str(uuid.uuid4())],
-    )
-
-# agents/memory/retrieval.py
-def score_memory(meta: dict, query_embedding: list[float], doc_embedding: list[float]) -> float:
-    now = time.time()
-    recency = 0.99 ** ((now - meta["last_access"]) / 3600)   # exponential decay per hour
-    relevance = cosine_similarity(query_embedding, doc_embedding)
-    importance = meta["importance"] / 10.0
-    return recency * 0.5 + relevance * 3.0 + importance * 2.0
-```
-
----
-
-## Data Flow
-
-### Simulation Loop Flow
-
-```
-SimulationEngine.tick()
-    │
-    ├── asyncio.gather(agent.run_tick() for all agents)
-    │       │
-    │       ├── agent.perceive()
-    │       │       Reads world grid (no LLM) → collect nearby events/agents within radius
-    │       │
-    │       ├── agent.react(percepts)
-    │       │       LLM call (gateway → litellm → provider API)
-    │       │       ← reaction decision: continue / interrupt / initiate conversation
-    │       │
-    │       ├── agent.act(reaction)
-    │       │       Update position intent → pathfinding.next_step(from, to)
-    │       │       Emit action event → event_bus.put({type: "agent_moved", ...})
-    │       │       If conversation: LLM call per dialogue turn
-    │       │
-    │       └── agent.maybe_reflect(tick)
-    │               Check poignancy threshold; if met:
-    │               LLM call → generate insight → memory.add_memory(insight, ...)
-    │
-    └── asyncio.sleep(tick_interval)
-```
-
-### Real-time Update Flow
-
-```
-event_bus.put(event)               [Simulation Engine]
-    │
-    └── broadcaster coroutine wakes
-            │
-            └── ws.send_json(event)         [FastAPI WebSocket layer]
-                    │
-                    └── useSimulation hook receives message  [React]
-                            │
-                            ├── (visual events) EventBridge.emit(...)  → Phaser canvas
-                            │       │
-                            │       └── AgentSprite.tween() to new position
-                            │
-                            └── (log events) simulationStore.addThought(...)  → AgentFeed renders
-```
-
-### Event Injection Flow
-
-```
-User types event in EventPanel → submit
-    │
-    └── ws.send_json({type: "inject_event", mode: "broadcast"|"whisper", target_agent_id?, content})
-            │
-            └── FastAPI WebSocket receives
-                    │
-                    └── simulation.events.handle_injection(mode, content, target?)
-                            │
-                            ├── broadcast: world.broadcast_event(content) → all agents perceive at next tick
-                            │
-                            └── whisper: target_agent.inject_private_event(content)
-                                    → agent perceives it; during next conversation, may share it organically
-```
-
----
-
-## Scaling Considerations
-
-| Concern | Single simulation (5-10 agents) | 25 agents | Future: multiple sessions |
-|---------|--------------------------------|-----------|--------------------------|
-| **LLM concurrency** | Semaphore(20) fine | Watch 429 rate limits; use cheaper models for routine calls | Per-session semaphores or global shared limit |
-| **Memory / ChromaDB** | In-process client fine | In-process fine; FAISS if ChromaDB shows memory pressure | Persistent ChromaDB server or Qdrant per-session namespace |
-| **WebSocket** | Single connection per session, single FastAPI process | Same; asyncio handles thousands of connections | Redis Pub/Sub as message bus between multiple FastAPI instances |
-| **Tick pacing** | 5s tick; asyncio.gather covers all agents | Tick may drift if LLM calls take >5s; cap agents or increase tick interval | Separate worker process per session via multiprocessing |
-| **World state** | In-memory dict | In-memory fine | Shared state store (Redis) for multi-process scaling |
-
-Key decisions for MVP scale (5-25 agents, single user):
-- In-process ChromaDB, no external services required
-- Single FastAPI process with uvicorn, no Redis needed
-- asyncio.Semaphore(15-20) for global LLM rate limiting
-- Tick interval 5-10 seconds; increase if LLM calls saturate
-
----
-
-## Anti-Patterns
-
-### Anti-Pattern 1: Blocking LLM Calls Inside asyncio Event Loop
-**What goes wrong:** Using synchronous `litellm.completion()` instead of `litellm.acompletion()` inside an async function blocks the entire event loop — all WebSocket connections, all other agents, all broadcasts freeze until that one LLM call returns.
-**Instead:** Always use async LLM clients (`litellm.acompletion`, `openai.AsyncOpenAI`). If a library has no async API, run it in a thread: `await asyncio.to_thread(sync_fn, args)`.
-
-### Anti-Pattern 2: Serverless / Function-as-a-Service Deployment
-**What goes wrong:** AWS Lambda, Vercel Functions, Cloudflare Workers have request timeouts (15s-5min) and stateless execution — incompatible with long-running WebSocket connections and the simulation tick loop.
-**Instead:** Use a persistent, long-lived process: uvicorn on a VPS or container. A single DigitalOcean Droplet (4GB RAM) handles this simulation fine.
-
-### Anti-Pattern 3: Phaser Opening Its Own WebSocket
-**What goes wrong:** Phaser and React end up with separate, unsynchronized views of server state; React UI controls fight with Phaser for the connection; reconnection logic must be duplicated.
-**Instead:** React owns the single WebSocket. Phaser receives data via an in-process EventEmitter (EventBridge pattern). React is the source of truth; Phaser is a dumb renderer.
-
-### Anti-Pattern 4: Sequential Per-Agent Processing
-**What goes wrong:** Running agents one-at-a-time (the reference implementation pattern) means tick time scales linearly with agent count. 10 agents × 3 LLM calls × 2s each = 60s per tick minimum.
-**Instead:** `asyncio.gather()` all agent coroutines. LLM I/O awaits yield the event loop, so all agents' LLM calls can be in-flight simultaneously. Actual wall-clock tick time approaches the slowest single agent's call chain, not the sum.
-
-### Anti-Pattern 5: Single Monolithic Agent State Object (Shared Mutable)
-**What goes wrong:** Multiple coroutines reading/writing a shared agent dict causes race conditions. Python's asyncio is single-threaded, so true races require explicit await context switches — but bugs are subtle and hard to reproduce.
-**Instead:** Each `Agent` object is exclusively owned by its own coroutine. Only the `SimulationEngine` reads agent public state (position, current_activity) between ticks, with no writes.
-
-### Anti-Pattern 6: Storing Full Conversation History in Agent Memory Vector Store
-**What goes wrong:** Verbatim conversation logs bloat the vector store and degrade retrieval quality. The embedding model treats low-signal conversational tokens as meaningful.
-**Instead:** Extract observations from conversations ("Agent X told me about the stock market crash") and store those observations. Store verbatim text only in a relational/JSON log for display purposes.
-
----
-
-## Integration Points
-
-| Integration | Direction | Protocol | Key Concern |
-|-------------|-----------|----------|-------------|
-| Frontend → Backend | Bidirectional | WebSocket (JSON messages) | Message schema versioning; reconnect logic on drop |
-| Backend → LLM Provider | Outbound | HTTPS REST (via litellm) | API key per session; rate limits; timeout handling |
-| Agent Cognition → Memory | Internal | Function calls (Python) | Embedding cost; retrieval latency per tick |
-| Simulation Engine → World | Internal | In-memory object access | No I/O; pure computation |
-| Simulation → Event Bus | Internal | asyncio.Queue.put() | Non-blocking; queue backpressure if WS is slow |
-| Persistence → Disk | Internal | JSON file + ChromaDB persist() | Snapshot consistency (agent state + memories must be co-serialized) |
-| Phaser ↔ React | In-browser | Phaser.Events.EventEmitter | No shared React state; one-way data flow from React → Phaser |
-
-### WebSocket Message Schema
-
-All WebSocket messages share a common envelope:
-
-```json
-{
-  "type": "agent_moved | agent_thought | agent_conversation | agent_action | inject_event | sim_tick | error",
-  "session_id": "uuid",
-  "tick": 42,
-  "payload": { ... }
+export function BuildingOverlay() {
+  const drawWalls = useCallback((g: PixiGraphics) => {
+    g.clear();
+    for (const seg of WALL_LINES) {
+      g.moveTo(seg.x1, seg.y1);
+      g.lineTo(seg.x2, seg.y2);
+    }
+    g.stroke({ color: 0x555544, width: 2 });
+  }, []);  // empty deps -- wall lines are static
+  return <pixiGraphics draw={drawWalls} />;
 }
 ```
 
-Client-to-server message types:
-- `inject_event` — user sends event; payload: `{mode, content, target_agent_id?}`
-- `start_sim` — start simulation; payload: `{agent_count, llm_config}`
-- `pause_sim` / `resume_sim`
-- `save_sim` / `load_sim` — persist/restore state
+**Integration:** Add <BuildingOverlay /> between <TileMap /> and agent sprites in
+MapCanvas.tsx. Rendered in PixiJS scene graph order: TileMap -> BuildingOverlay -> agents.
 
-Server-to-client message types:
-- `agent_moved` — payload: `{agent_id, from: {x,y}, to: {x,y}}`
-- `agent_thought` — payload: `{agent_id, thought, tick}`
-- `agent_conversation` — payload: `{agent_a, agent_b, turn, text}`
-- `agent_action` — payload: `{agent_id, action_type, description}`
-- `sim_tick` — payload: `{tick, sim_time_str, agent_summaries[]}`
+### 8. LLM Call Optimization: Budget and Levers
+
+Current per-agent per-tick worst case (full conversation):
+- attempt_conversation(): 1 call
+- run_conversation(): up to 8 turns + 2 importance + 2 schedule_revise = 12 calls
+- Total: 13 calls per agent per conversation tick
+
+After 3-level decision (no conversation):
+- decide_action() three-level: 3 calls
+
+**Optimization levers for v1.1:**
+
+1. Activity heuristic gate before attempt_conversation() LLM call: if both agents are
+   in "working" or "sleeping" activities, return False without an LLM call. Saves 1 call
+   per nearby pair per tick.
+
+2. Repetition detection in run_conversation(): if the last 2 turns from the same speaker
+   have very similar text (local string similarity check, no LLM), force end_conversation=True.
+   Reduces average conversation length from MAX_TURNS toward 2-3 turns.
+
+3. cheap_model parameter in complete_structured(): pass a cheaper model for high-frequency
+   low-stakes calls (importance_score, conversation_turn). Use configured model for
+   reflect_insights and three-level decision calls.
+
+4. Reduce TICK_INTERVAL from 30s to 10s default: asyncio.TaskGroup already runs all agents
+   concurrently so the bottleneck is the slowest agent LLM response, not the number of
+   agents. With GPT-4o-mini or Haiku, p95 LLM latency is well under 10s.
 
 ---
 
-## Build Order (Phase Implications)
+## Recommended Build Order
 
-Component dependencies determine build order. Each layer requires the one below it.
+Dependencies determine order. Each step is independently buildable and testable.
+
+### Step 1: Agent OOP Refactor (Foundation)
+
+Create backend/agents/agent.py with Agent class consolidating AgentConfig + AgentState
+plus the new reflection_poignancy field. Update SimulationEngine._agent_states.
+Update all field accesses in engine.py.
+
+No behavior change. All existing tests pass.
+
+### Step 2: Reflection System (Requires Step 1 for reflection_poignancy)
+
+Add reflect.py, add poignancy_delta to PerceptionResult, add reflection check in
+_agent_step(), add POIGNANCY_THRESHOLD, add reflect_focus.py and reflect_insights.py prompts.
+
+No change to movement or decisions. Adds new "thought" memories visible in activity feed.
+
+### Step 3: Three-Level Decision (Requires Step 1 for Agent.config.spatial access)
+
+Replace decide_action() internals with 3-level sequential LLM calls.
+Add determine_sector.py, determine_arena.py, determine_object.py prompts.
+Update Maze.resolve_destination() to accept "sector:arena" strings.
+
+Behavior change: agents navigate to arenas within sectors, not just sector-level.
+
+### Step 4: Building Walls + Visual Overhaul (No backend dependencies, parallel with 2-3)
+
+Add BuildingOverlay.tsx. Improve TileMap.tsx label sizes and font weights.
+Tune AgentSprite.tsx text sizes for readability at default zoom.
+
+Pure frontend. Can be developed while Steps 2-3 are in progress.
+
+### Step 5: Relationship Tracking (Requires Step 2 -- reflection uses relationship history)
+
+Add backend/agents/relationships.py RelationshipTracker.
+Wire into converse.run_conversation() and reflect.py.
+Thread tracker instance through SimulationEngine constructor.
+
+### Step 6: Conversation Improvements + Tick Optimization (Requires Steps 1-3)
+
+Add activity heuristic gate before attempt_conversation() LLM call.
+Add repetition detection to run_conversation().
+Add cheap_model routing in gateway.complete_structured().
+Reduce TICK_INTERVAL default and make it configurable.
+
+---
+
+## Component Boundary Table
+
+| Boundary | Communication | v1.1 Change? |
+|----------|--------------|--------------|
+| engine.py <-> cognition/ | Function calls, typed args | Add poignancy_delta to PerceptionResult; reflection call added |
+| engine.py <-> memory/ | add_memory(), reset_simulation() | No change |
+| cognition/reflect.py <-> memory/ | retrieve_memories(), add_memory() | New caller, existing functions |
+| cognition/converse.py <-> relationships.py | tracker.record() | New call added after each conversation |
+| engine.py <-> simulation/world.py | maze.find_path(), maze.resolve_destination() | resolve_destination() accepts "sector:arena" strings |
+| Backend <-> Frontend | WebSocket JSON (WSMessage) | No schema changes; building walls go via town.json static import |
+| MapCanvas.tsx <-> BuildingOverlay.tsx | Parent renders child in PixiJS tree | New component added |
+| TileMap.tsx <-> town.json | Static import | May add walls key later; no change in Step 4 |
+| gateway.py <-> all cognition | complete_structured() | Add cheap_model optional param in Step 6 |
+
+---
+
+## Anti-Patterns to Avoid
+
+### Anti-Pattern 1: Flattening AgentConfig into Agent
+
+**What people do:** Copy all AgentConfig fields directly onto the Agent class,
+eliminating the config sub-object.
+
+**Why it's wrong:** loader.py returns list[AgentConfig] and the JSON schema is stable.
+Existing tests and the WebSocket snapshot serialize config.scratch.innate etc. Flattening
+requires touching every reference throughout the codebase.
+
+**Do this instead:** Keep Agent.config: AgentConfig as a sub-object. Promote only the
+fields the engine accesses on every tick (coord, path, current_activity, schedule,
+reflection_poignancy) to the top level of Agent.
+
+### Anti-Pattern 2: Cascade-Refactoring Cognition Function Signatures
+
+**What people do:** Change perceive(), decide_action(), attempt_conversation() to accept
+Agent objects instead of individual fields.
+
+**Why it's wrong:** These functions have existing tests built against their current
+signatures. Changing them risks breaking test coverage and creates a larger diff.
+
+**Do this instead:** Keep cognition functions accepting individual fields. engine._agent_step()
+extracts fields from the Agent object before passing them. This is the existing pattern
+(config = state.config, config.scratch, etc.) -- extend it, do not replace it.
+
+### Anti-Pattern 3: Sending Building Wall Geometry via WebSocket
+
+**What people do:** Add building metadata to the engine snapshot and send wall coordinates
+over the WebSocket on every new client connection.
+
+**Why it's wrong:** Wall geometry is static -- it never changes during simulation. Sending
+it over WebSocket adds pointless payload. The frontend already imports town.json at build
+time for sector colors.
+
+**Do this instead:** Compute wall segments in BuildingOverlay.tsx from the already-imported
+town.json at module load time. Zero runtime cost, zero backend change.
+
+### Anti-Pattern 4: Blocking the Event Loop with Reflection
+
+**What people do:** Add await reflect(...) synchronously inside _agent_step() when the
+threshold is crossed, blocking that agent's task for the duration of 4-15 LLM calls.
+
+**Why it's wrong:** Reflection takes significantly longer than a normal decide step. Running
+it inline will trigger the TICK_INTERVAL*2 timeout guard and skip the agent entirely.
+
+**Do this instead:** Fire reflection as asyncio.create_task() when the threshold is
+crossed. Clear reflection_poignancy immediately. The thought memories will be available
+for the next tick's memory retrieval. This matches the reference behavior.
+
+### Anti-Pattern 5: Growing schemas.py Without Bounds
+
+**What people do:** Add all new Pydantic models to schemas.py.
+
+**Why it's wrong:** schemas.py is already 183 lines with 12 models. Adding Event,
+ReflectionInsight, ThreeLevelAction, RelationshipEntry makes it unmaintainable.
+
+**Do this instead:** Add domain-grouped files alongside schemas.py for v1.1 additions:
+backend/schemas/events.py, backend/schemas/reflection.py, backend/schemas/decision.py.
+Keep schemas.py for foundational models referenced everywhere (AgentConfig, AgentScratch,
+AgentSpatial, PerceptionResult, WSMessage, Memory, ScheduleEntry). Additive -- no refactor
+of existing imports required.
+
+---
+
+## Modified Data Flow After v1.1
+
+### Agent Step
 
 ```
-Layer 0 (foundation):
-  world.py (TileGrid) + pathfinding.py
-  → No external deps; pure Python data structures
+_agent_step(agent: Agent)
+    all_agents_view = snapshot of all agents' coords and activities
 
-Layer 1 (cognition backbone):
-  llm/gateway.py (litellm wrapper + semaphore)
-  agents/memory/store.py + retrieval.py (ChromaDB)
-  → Requires: Layer 0 concepts; can be built standalone with unit tests
+    perception = perceive(agent.coord, agent.name, maze, all_agents_view)
+    -> PerceptionResult{nearby_agents, nearby_events, location, poignancy_delta}  [NEW field]
 
-Layer 2 (agent cognition):
-  agents/cognition/ (perceive → plan → react → act → reflect)
-  → Requires: Layer 1 (LLM gateway + memory); Layer 0 (world for perceive)
+    agent.reflection_poignancy += perception.poignancy_delta
+    if agent.reflection_poignancy >= POIGNANCY_THRESHOLD:
+        asyncio.create_task(reflect(...))   [NEW -- background task]
+        agent.reflection_poignancy = 0
 
-Layer 3 (simulation loop):
-  simulation/engine.py (tick loop + agent pool)
-  simulation/events.py (event routing)
-  → Requires: Layer 2 (agents); Layer 0 (world)
+    if agent.path: return  (movement loop handles walking)
 
-Layer 4 (API + transport):
-  api/ws.py (WebSocket + connection manager + broadcaster)
-  api/sessions.py (REST create/save/load)
-  → Requires: Layer 3 (engine to start)
+    if perception.nearby_agents:
+        if _passes_activity_heuristic(agent, other):   [NEW gate]
+            should_talk = await attempt_conversation(...)
+            if should_talk:
+                result = await run_conversation(...)
+                tracker.record(a, b, result.summary)   [NEW]
+                return
 
-Layer 5 (frontend):
-  Phaser 3 canvas (tilemap, sprites, interpolation)
-  React UI shell (panels, event injection)
-  WebSocket hook + EventBridge
-  → Requires: Layer 4 (server protocol defined)
+    action = await decide_action_three_level(          [MODIFIED internals]
+        ...same signature...
+    )
+    -> ThreeLevelAction{sector, arena, object, activity}
+
+    dest_coord = maze.resolve_destination("sector:arena")  [MODIFIED]
+    path = maze.find_path(agent.coord, dest_coord)
+    agent.path = path[1:]
+    agent.current_activity = action.activity
+    await _emit_agent_update(...)
+    await add_memory(...)
 ```
 
-Suggested phase order for roadmap:
-1. **World + Pathfinding** — pure data layer, testable offline
-2. **LLM Gateway + Memory** — agent intelligence primitives
-3. **Agent Cognition Loop** — single-agent think cycle, test with mock world
-4. **Simulation Engine** — multi-agent tick loop, CLI or minimal API
-5. **FastAPI + WebSocket** — real-time transport layer
-6. **React + Phaser Frontend** — visual layer consumes the protocol
-7. **Event Injection + Persistence** — complete user-facing features
+### Reflection Flow (Async Background Task)
+
+```
+asyncio.create_task(reflect(agent_name, sim_id, agent_scratch))
+    memories = retrieve_memories(sim_id, agent_name, focus_query, top_k=20)
+    questions = complete_structured(reflect_focus_prompt, ReflectionFocus)  -- 1 LLM call
+    for question in questions[:3]:
+        focused = retrieve_memories(sim_id, agent_name, question, top_k=5)
+        insights = complete_structured(reflect_insights_prompt, ReflectionInsights)  -- 1 LLM call
+        for insight in insights[:5]:
+            importance = score_importance(...)
+            add_memory(sim_id, agent_name, insight, "thought", importance)
+    -- Total: 3-6 LLM calls, all async/non-blocking
+```
+
+---
+
+## Scalability Considerations
+
+| Scale | Architecture Adjustments |
+|-------|--------------------------|
+| 5-10 agents (current) | asyncio.TaskGroup concurrent tick is correct; no changes needed |
+| 15-25 agents | Cheap model routing (Step 6) becomes necessary; reflection background tasks accumulate -- add semaphore to bound concurrent reflection tasks |
+| 25+ agents | EphemeralClient ChromaDB starts to strain; switch to PersistentClient with file-backed store for better memory management |
+
+These are not v1.1 concerns -- the current single-user 5-10 agent scope is well within
+the existing architecture's capacity.
 
 ---
 
 ## Sources
 
-- Park et al., "Generative Agents: Interactive Simulacra of Human Behavior" (2023) — [ACM DL](https://dl.acm.org/doi/fullHtml/10.1145/3586183.3606763) / [arXiv:2304.03442](https://arxiv.org/abs/2304.03442) — HIGH confidence (primary source for agent architecture)
-- Render.com, "Building Real-Time AI Chat: WebSockets, LLM Streaming, and Session Management" — [article](https://render.com/articles/real-time-ai-chat-websockets-infrastructure) — HIGH confidence for web service + background worker + pub-sub pattern
-- FastAPI Official Docs, "WebSockets" — [fastapi.tiangolo.com](https://fastapi.tiangolo.com/advanced/websockets/) — HIGH confidence
-- LiteLLM Docs — [docs.litellm.ai](https://docs.litellm.ai/docs/) — HIGH confidence for multi-provider abstraction
-- Phaser.io, "Official Phaser 3 and React Template" — [phaser.io](https://phaser.io/news/2024/02/official-phaser-3-and-react-template) — MEDIUM confidence (integration confirmed, WS pattern inferred)
-- Redowan's Reflections, "Limit concurrency with semaphore in Python asyncio" — [rednafi.com](https://rednafi.com/python/limit-concurrency-with-semaphore/) — HIGH confidence for semaphore rate limiting pattern
-- Victor Dibia, "Integrating AutoGen Agents into Your Web Application (FastAPI + WebSockets + Queues)" — [newsletter](https://newsletter.victordibia.com/p/integrating-autogen-agents-into-your) — MEDIUM confidence for queue + broadcaster pattern
-- deepwiki, "Vector Database and FAISS Integration in agent-zero" — [deepwiki.com](https://deepwiki.com/frdel/agent-zero/4.1-vector-database-and-faiss-integration) — MEDIUM confidence for per-agent namespace pattern
-- Python asyncio official docs, "Coroutines and Tasks" — [python.org](https://docs.python.org/3/library/asyncio-task.html) — HIGH confidence for asyncio.gather pattern
+- Full read: backend/simulation/engine.py, world.py, agents/cognition/*, agents/memory/*, gateway.py, schemas.py, routers/ws.py
+- Full read: frontend/src/components/*, frontend/src/store/simulationStore.ts, frontend/src/types/index.ts
+- Reference implementation (direct read): GenerativeAgentsCN/generative_agents/modules/agent.py -- reflect(), _determine_action(), percept(), make_plan() methods
+- Reference implementation (direct read): GenerativeAgentsCN/generative_agents/modules/maze.py -- Tile._events, update_events(), add_event()
+- CLAUDE.md stack decisions: confirmed all technology choices (LiteLLM, instructor, FastAPI, PixiJS v8, @pixi/react v8, Zustand) stay unchanged in v1.1
+
+---
+*Architecture research for: Agent Town v1.1 OOP Refactor + Visual Polish + LLM Optimization*
+*Researched: 2026-04-10*

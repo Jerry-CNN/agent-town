@@ -1,173 +1,346 @@
 # Stack Research
 
 **Domain:** LLM-powered agent simulation web app
-**Researched:** 2026-04-08
-**Overall Confidence:** HIGH for core choices, MEDIUM for supporting libraries
+**Researched:** 2026-04-10
+**Milestone:** v1.1 — OOP refactoring, UI visual overhaul, LLM optimization, agent behavior fidelity
+**Confidence:** HIGH for Python patterns (stdlib), HIGH for PixiJS Graphics API, MEDIUM for LiteLLM cache
+
+> This document **supersedes** the v1.0 STACK.md and adds new capabilities for v1.1.
+> The base stack (FastAPI, PixiJS, LiteLLM, ChromaDB, Zustand, etc.) is unchanged and validated.
+> Sections below cover only what is NEW for v1.1 features.
 
 ---
 
-## Recommended Stack
+## What Is New for v1.1
 
-### Core Technologies
+The milestone adds four capability clusters. No new external packages are required for any of them. All new features use existing dependencies, stdlib, or patterns already in the codebase.
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|----------------|
-| Python | 3.11+ | Backend runtime | 3.11 gives 10-60% perf gains over 3.10; required for modern asyncio patterns. 3.12 is fine too but 3.11 is the widest-supported baseline in 2025 containers. |
-| FastAPI | 0.115+ | HTTP + WebSocket API server | Native async, first-class WebSocket support, Pydantic v2 built-in, Starlette 1.0 compatibility. The reference agent logic is Python — FastAPI is the lowest-friction web layer. Do not use Flask/Django; they lack async-first WebSocket handling. |
-| Uvicorn | 0.30+ | ASGI server | Paired with FastAPI as the standard runtime. Use `uvicorn[standard]` (includes `uvloop` and `httptools`) for production-grade performance. |
-| React | 19+ | UI framework | Official @pixi/react v8 targets React 19. Ecosystem standard. Use with TypeScript. |
-| TypeScript | 5.4+ | Frontend type safety | PixiJS v8 and @pixi/react v8 ship TypeScript definitions. Saves debugging time at the agent-state schema boundary. |
-| Vite | 5+ | Frontend build tool | CRA is deprecated. Vite is the 2025 standard: instant HMR, native ESM, SWC for TS compilation. `npm create vite@latest -- --template react-ts` is the canonical starting point. |
-| PixiJS | 8.17+ | 2D tile rendering engine | WebGL/WebGPU renderer with Canvas fallback. Fastest 2D rendering library for browser (47 FPS benchmark vs. Phaser 3's 43 FPS on sprite stress tests). Does NOT impose a game structure — plugs cleanly into React. Tiled JSON map support via `pixi-tiledmap`. |
-| @pixi/react | 8+ | React-PixiJS bridge | Official v8 (March 2025 rewrite) with TypeScript, React 19 support, `extend` API for tree-shaking. Renders PixiJS scene graph as JSX. This is the standard — do not use the older `react-pixi-fiber`. |
-
-### Supporting Libraries
-
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| LiteLLM | 1.83+ | Unified LLM provider client | Single Python API for OpenAI, Anthropic, Ollama, OpenRouter, Bedrock. Abstracts away SDK differences so agent logic never changes when the user switches providers. Pin to >=1.83.0 — avoid 1.82.7/1.82.8 (supply-chain compromise, March 2026, both removed from PyPI). |
-| instructor | 1.8+ | Structured LLM output with Pydantic | Forces LLM responses into typed Pydantic models with automatic retry on validation failure. Use for every agent cognition call: schedule generation, reaction decisions, conversation turns. Works with any provider via `instructor.from_litellm()`. |
-| Pydantic | 2.7+ | Data validation / schema | Bundled with FastAPI. Use for agent state models, LLM response schemas, WebSocket message contracts. Do not mix v1 and v2 patterns — use `model_validator`, not `@validator`. |
-| ChromaDB | 0.6+ | Vector store for agent memory | Embedded SQLite-backed store, zero infrastructure. `PersistentClient(path=...)` survives restarts for save/load. Bundles `all-MiniLM-L6-v2` embeddings by default. Right choice for single-user, per-simulation instances. Do NOT use Qdrant/Weaviate — they require separate server processes. |
-| sentence-transformers | 3.x | Local embedding model | Used by ChromaDB's default embedding function. `all-MiniLM-L6-v2` is 80MB, runs on CPU, fast enough for memory retrieval (<50ms per embed). No API key required — critical since the memory system runs on every agent step. |
-| SQLAlchemy | 2.0+ | Simulation state persistence | For optional save/load: serialize agent state (schedule, memory refs, position) to SQLite. Use async SQLAlchemy (`asyncpg` or `aiosqlite`) to avoid blocking the event loop. |
-| aiosqlite | 0.20+ | Async SQLite driver | Pairs with SQLAlchemy for non-blocking SQLite I/O in the FastAPI async context. |
-| Zustand | 4.5+ | Frontend global state | Minimal boilerplate, excellent performance, works outside React context for WebSocket message ingestion. Use for agent state store (positions, activity, conversation). Do not use Redux — overkill. Do not use React Context for high-frequency WebSocket updates (re-render cost). |
-| pixi-tiledmap | latest | Tiled JSON map loader for PixiJS v8 | Ground-up PixiJS v8 rewrite with full layer support and typed API. Parses Tiled JSON exported from the Tiled map editor. Use Tiled to design the town map, export JSON, load at runtime. |
-| websockets (Python) | 12+ | WebSocket protocol (dev only) | FastAPI/Starlette handles WebSocket protocol natively via `starlette.websockets`. You don't need this as a direct dependency unless writing standalone WS test clients. |
-
-### Development Tools
-
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| uv | Python package and venv management | Replaces pip + virtualenv. 10-100x faster than pip. Install with `curl -LsSf https://astral.sh/uv/install.sh \| sh`. Use `uv sync` to install from `pyproject.toml`. |
-| pyproject.toml | Python project manifest | Standard since PEP 517. Replaces setup.py, requirements.txt. Works with uv natively. |
-| Vitest | Frontend unit testing | Vite-native, same config. Test agent state reducers and WebSocket message parsers. |
-| pytest + pytest-asyncio | Backend testing | Essential for async FastAPI routes and agent simulation step tests. |
-| Tiled Map Editor | Town map authoring | Open-source desktop app. Design the tile grid, export to JSON, load in browser at runtime. One-time tool, not a runtime dependency. |
-| Biome | Frontend linting + formatting | Replaces ESLint + Prettier. Rust-based, 10-100x faster. Single config file. |
+| Cluster | What Changes | New Dependencies? |
+|---------|-------------|-------------------|
+| Backend OOP refactoring | `dataclasses` → richer classes with methods | None — stdlib only |
+| Building wall rendering | PixiJS `Graphics.stroke()` with existing API | None — PixiJS 8.17 already installed |
+| LLM call optimization | `asyncio.Semaphore` + `litellm.cache` | None — already imported |
+| Reflection system | New Pydantic schemas + LLM prompt functions | None — instructor/pydantic already present |
 
 ---
 
-## Installation
+## Backend OOP Refactoring
 
-```bash
-# --- Backend ---
-# Requires Python 3.11+, uv installed
-uv init agent-town-backend
-cd agent-town-backend
+### Current State
 
-uv add fastapi "uvicorn[standard]" pydantic
-uv add "litellm>=1.83.0"          # IMPORTANT: skip 1.82.7-1.82.8 (supply-chain compromise)
-uv add instructor
-uv add chromadb sentence-transformers
-uv add sqlalchemy aiosqlite
+The existing `AgentState` in `engine.py` is a `@dataclass` with raw fields (name, config, coord, path, schedule). Cognition is in standalone functions (`perceive()`, `decide_action()`, etc.) called from `engine.py`. `AgentConfig` and friends are Pydantic models in `schemas.py`.
 
-uv add --dev pytest pytest-asyncio httpx  # httpx for FastAPI test client
+### What the Refactor Needs
 
-# --- Frontend ---
-npm create vite@latest agent-town-frontend -- --template react-ts
-cd agent-town-frontend
+Agent class that owns both static config and runtime state, with cognition methods. Building/Location class representing map sectors with wall metadata. Event class with lifecycle (created, active, expired). This is structural reorganization — no new runtime dependencies.
 
-npm install pixi.js @pixi/react
-npm install pixi-tiledmap
-npm install zustand
-npm install -D vitest @vitest/ui biome
-```
+### Pattern: Combine `@dataclass` for state, Pydantic for schemas
 
----
+The codebase already uses both. The right split for v1.1 is:
 
-## Alternatives Considered
+- **Pydantic models** (`schemas.py`): LLM response shapes, WebSocket contracts, config loaded from JSON. These cross the wire or validation boundary and need Pydantic's coercion and error messages.
+- **`@dataclass`** (new `agent.py`, `building.py`, `event.py`): Runtime simulation objects that hold mutable state and expose methods. Dataclasses have no import cost overhead and integrate naturally with `asyncio`.
 
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| 2D Rendering | PixiJS + @pixi/react | Phaser 4 | Phaser imposes a full game loop and scene manager that conflicts with React's render cycle. Phaser 4 is in RC as of April 2025 — production risk. PixiJS integrates cleanly as a React canvas child. |
-| 2D Rendering | PixiJS | HTML5 Canvas API | Canvas requires manual sprite sheet management, no WebGL acceleration by default, quadratic performance degradation with agent count. |
-| 2D Rendering | PixiJS | Three.js | 3D engine with 2D support is overkill. Adds 600KB+ to bundle for no benefit. |
-| LLM Abstraction | LiteLLM | Direct OpenAI SDK | OpenAI SDK only covers OpenAI and Azure. Users require Anthropic, Ollama, OpenRouter support. LiteLLM provides a single interface to all. |
-| LLM Abstraction | LiteLLM | LangChain | LangChain is too opinionated for agent architecture that matches the paper's design. LiteLLM is a pure provider abstraction — no chain/agent framework lock-in. |
-| Structured Output | instructor | OpenAI `response_format` | `response_format` only works with OpenAI. instructor works across all LiteLLM-supported providers with the same Pydantic schema. |
-| Vector Store | ChromaDB | Qdrant | Qdrant runs as a separate server process. Single-user, local simulation does not need distributed vector search. ChromaDB is embedded and zero-ops. |
-| Vector Store | ChromaDB | FAISS | FAISS lacks metadata filtering — can't filter memories by agent ID or time window without external logic. ChromaDB handles both. |
-| Vector Store | ChromaDB | pgvector | PostgreSQL server dependency is too heavy for a local single-user simulation tool. |
-| State Management | Zustand | Redux Toolkit | Redux requires 5x more boilerplate. Zustand's `subscribe` API is better suited for ingesting high-frequency WebSocket messages without triggering unnecessary re-renders. |
-| State Management | Zustand | React Context | Context re-renders all consumers on every update. With 5-25 agents emitting updates every few seconds, this causes visible frame drops. |
-| Frontend Build | Vite | Create React App | CRA is deprecated and unmaintained since 2023. Vite is the community standard. |
-| Backend Server | FastAPI + Uvicorn | Django Channels | Django adds ORM, migrations, and admin overhead irrelevant to agent simulation. FastAPI is async-native and lightweight. |
-| Python Deps | uv | pip + venv | uv is 10-100x faster and handles lockfiles correctly. pip's resolver has known issues with complex dependency graphs (e.g., torch + sentence-transformers). |
+Do NOT use `ABC` / abstract base classes. The project spec explicitly states "all agents run same code paths with personality from LLM prompts" — agent subclassing is out of scope. ABC adds ceremony with no benefit here.
 
----
+Do NOT use `__slots__` on the runtime classes in v1.1. It prevents dynamic attribute addition which will cause friction during the refactor. Add slots later after the class boundaries stabilize.
 
-## What NOT to Use
+**Confidence: HIGH** — stdlib dataclasses, no new dependencies, pattern already in use in `engine.py`.
 
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| Phaser 4 (in production, April 2026) | RC4 released May 2025 — stable release may be out by April 2026, but the React integration story is weaker than PixiJS. The full game loop (scenes, physics engine, audio) adds complexity you don't need. | PixiJS 8 + @pixi/react 8 |
-| Kaboom / Kaplay | 3 FPS in sprite stress benchmarks. Built for game jams, not production simulations. | PixiJS |
-| LangChain as agent framework | LangChain abstractions don't map to the Generative Agents paper's architecture (memory stream, reflection, planning). Using it means fighting the framework. Use it only as a last resort for a specific integration. | Direct LiteLLM + instructor + custom agent classes |
-| litellm 1.82.7 or 1.82.8 | Supply-chain compromise discovered March 2026. Both versions backdoored and removed from PyPI. | litellm >=1.83.0 |
-| threading.Thread for agent concurrency | Python GIL limits true parallelism. For I/O-bound LLM calls, asyncio with `asyncio.Semaphore` is correct. | asyncio.gather + asyncio.Semaphore |
-| WebSockets library (Python) as primary server | FastAPI's built-in Starlette WebSocket handling is already production-grade. Adding `websockets` as a server creates a second event loop conflict. | FastAPI WebSocket endpoints |
-| Next.js | SSR adds complexity for a simulation UI that is purely client-side dynamic content. No SEO needed. | Vite + React (SPA) |
-| SQLite WAL mode with multiple processes | Agent simulation will write/read state frequently from Python. Multi-process SQLite access causes lock contention. Keep simulation in a single process. | Single-process FastAPI + aiosqlite |
-
----
-
-## Stack Patterns by Variant
-
-### If LLM calls are too slow for real-time feel
-Use `asyncio.Semaphore` to cap concurrent calls per agent step. Run 5 agents fully before adding more. Use cheap models (GPT-4o-mini, Claude Haiku 3.5) for routine calls (plan retrieval, movement decisions) and expensive models only for reflection.
+### Agent Class Shape (reference)
 
 ```python
-sem = asyncio.Semaphore(10)  # max 10 concurrent LLM calls across all agents
-async def bounded_llm_call(prompt):
-    async with sem:
-        return await litellm.acompletion(...)
+@dataclass
+class Agent:
+    # Static identity (from AgentConfig)
+    name: str
+    config: AgentConfig
+
+    # Runtime state (mutable per tick)
+    coord: tuple[int, int]
+    path: list[tuple[int, int]] = field(default_factory=list)
+    current_activity: str = ""
+    schedule: list[ScheduleEntry] = field(default_factory=list)
+    poignancy_accumulator: float = 0.0   # new: feeds reflection trigger
+
+    # Cognition as methods (call existing standalone functions internally)
+    async def step(self, engine_context: "SimulationContext") -> None: ...
+    async def reflect(self) -> None: ...   # new for v1.1
 ```
 
-### If users want Ollama (local LLM)
-LiteLLM supports Ollama natively with `model="ollama/llama3.2"`. No extra code. Warn users that local models are 5-20x slower than API models — agent steps will take longer.
+The `poignancy_accumulator` field is the key v1.1 addition — it accumulates importance scores across observations and triggers reflection when it crosses the threshold (150 per reference implementation, configurable).
 
-### If vector memory retrieval is slow
-ChromaDB's default `all-MiniLM-L6-v2` embeds in <50ms on CPU. If this becomes a bottleneck with large memory streams (>1000 memories per agent), switch to `chromadb.EphemeralClient()` + pre-load agent memories at step start rather than querying every cognition call.
+### Building Class Shape (reference)
 
-### If tile map requires animation (NPC walking cycles)
-PixiJS `AnimatedSprite` handles sprite sheet frame cycling natively. Define animation frames in the sprite atlas JSON. No additional library needed.
+```python
+@dataclass
+class Building:
+    name: str             # e.g. "stock-exchange"
+    sector: str           # same as name for top-level sectors
+    tiles: list[tuple[int, int]]    # all tile coords inside
+    wall_tiles: list[tuple[int, int]]  # perimeter tiles (collision=True)
+    entry_point: tuple[int, int]    # navigable tile just outside walls
+    color: int            # hex for PixiJS rendering (0xRRGGBB)
+```
 
-### If save/load is deferred (MVP)
-Skip SQLAlchemy + aiosqlite in Phase 1. Keep simulation state in-memory Python objects. Add persistence later without architectural change — the agent classes are already Pydantic models that serialize to JSON.
+This replaces the current SectorBounds dict pattern used in both `world.py` and `TileMap.tsx`. The frontend receives building metadata via the simulation snapshot; the backend owns the authoritative Building objects.
 
 ---
 
-## Version Compatibility
+## Building Wall Rendering (PixiJS)
 
-| Pair | Compatibility Note |
-|------|--------------------|
-| FastAPI 0.115+ + Starlette 1.0+ | FastAPI >=0.115 requires Starlette >=1.0. Starlette 1.0 dropped several deprecated APIs — do not use `starlette.requests.Request.receive` directly. |
-| @pixi/react v8 + PixiJS v8 | @pixi/react v8 requires PixiJS v8 as a peer dependency. Do not mix v7 PixiJS with v8 react bindings. |
-| instructor + LiteLLM | `instructor.from_litellm(litellm.completion)` is the integration pattern. Use `instructor.patch` only for direct OpenAI client. |
-| ChromaDB + sentence-transformers | ChromaDB bundles its own sentence-transformers embedding function. If you install sentence-transformers separately, ensure the same version to avoid tokenizer conflicts. |
-| Python 3.11+ + asyncio | `asyncio.TaskGroup` (Python 3.11+) is preferred over `asyncio.gather` for structured concurrency. Use it for per-agent step execution. |
-| SQLAlchemy 2.0 + aiosqlite | SQLAlchemy 2.0 requires `async_sessionmaker` (not `sessionmaker`) for async engines. Old tutorials using `create_async_engine` + `Session` are broken. |
+### Current State
+
+`TileMap.tsx` draws sector zones as filled rectangles with no outlines. Sector labels exist but are 13px at full map scale (3200px canvas fit into ~800px viewport → effectively ~3px at default zoom). Collision tiles are drawn as individual dark gray rects, but these are sparse border tiles, not building wall outlines.
+
+### What Is Needed
+
+Visible wall outlines around building sectors. Readable text labels. Both are achievable with the existing PixiJS 8.17.1 API — no new packages.
+
+### PixiJS v8 Graphics Stroke API
+
+Confirmed current API (verified against official docs):
+
+```typescript
+// Draw a filled rect with a stroke outline
+g.rect(x, y, width, height)
+  .fill({ color: 0xa8d5a2 })          // fill interior
+  .stroke({ color: 0x5a8a55, width: 2 }); // draw wall outline
+```
+
+The stroke call must come AFTER fill in v8 — unlike v7 where lineStyle was set before drawing. The `stroke()` method accepts `StrokeStyle`: `{ color, width, alpha, join, cap, pixelLine }`.
+
+For a 32px tile grid with default zoom ~0.25, a 2px stroke at world-space renders at 0.5px on screen — invisible. Use **3-4px width** for wall outlines to remain visible at default fit-to-screen zoom.
+
+For pixel-perfect 1px lines (grid lines, not walls): `{ pixelLine: true }` keeps lines exactly 1 screen pixel regardless of zoom. This is useful for arena subdivision lines but NOT for building walls which need visible weight.
+
+**Confidence: HIGH** — official PixiJS 8.x docs confirm this API. The current codebase already uses `g.setFillStyle()` + `g.fill()` correctly; adding `.stroke()` is additive.
+
+### Text Readability Fix
+
+Current agent labels are 9-13px PixiJS `pixiText` (canvas-rasterized). At the ~0.25x default scale, these render at effectively 2-3px — unreadable.
+
+Two approaches, both using existing PixiJS capabilities:
+
+**Option A: Increase font size and scale inverse to zoom (recommended)**
+Keep `pixiText` but increase font sizes significantly (24-32px for sector labels, 18px for agent names, 14px for activity). At 0.25x zoom, 28px renders at 7px — barely readable but acceptable. This is the minimal-change path.
+
+**Option B: BitmapText for agent labels**
+`BitmapText` uses a pre-rasterized glyph atlas — better performance (no per-frame Canvas rasterization), supports MSDF fonts for crisp scaling at any zoom level. Tradeoff: requires generating a bitmap font atlas or using a pre-built one. The PixiJS 8.17 release notes confirm `BitmapText` and `Text` parity improvements.
+
+**Recommendation: Option A for v1.1** (minimal risk, no new assets). Option B is a v1.2 optimization if text performance becomes a bottleneck with 25 agents all updating labels per frame.
+
+For sector labels specifically: the current approach renders them at module-load time as `pixiText` objects positioned at sector centers. At 32px font size (up from 13px), these remain readable at default zoom. Since sector labels never change, there is no performance cost to increasing their size.
+
+**Confidence: HIGH** — PixiJS docs confirm `Text` and `BitmapText` capabilities. The current code pattern (pixi `Text` via JSX) supports fontSize changes with no API change.
+
+---
+
+## LLM Call Optimization
+
+### Current Architecture
+
+`gateway.py` uses `instructor.from_litellm(litellm.acompletion)` with a global `_client`. All calls go through `complete_structured()`. The simulation engine calls one LLM function per agent per tick sequentially within `asyncio.TaskGroup` (all agents run concurrently, but each agent's LLM calls are sequential within `_agent_step()`).
+
+The current `decide_action()` makes a single flat decision: "go to sector X, do activity Y." The reference implementation uses 3-level resolution: sector → arena → object. This milestone adds that.
+
+### 3-Level Decision Resolution
+
+The pattern from `GenerativeAgentsCN/modules/agent.py` `_determine_action()`:
+
+1. **Sector decision** — which top-level zone to go to (stock-exchange, park, etc.)
+2. **Arena decision** — which sub-area within that sector (trading floor vs. lobby)
+3. **Object decision** — which specific object in that arena (terminal, seat, door)
+
+Each level is a separate LLM call only if there is ambiguity. If a sector has one arena, skip the arena call. If an arena has one object, skip the object call. This "short-circuit on single option" pattern can eliminate 1-2 LLM calls per tick for simple scenarios.
+
+These are three separate `complete_structured()` calls using existing infrastructure. No new libraries needed. New Pydantic schemas required: `SectorDecision`, `ArenaDecision`, `ObjectDecision` — all trivial one-field models.
+
+**Confidence: HIGH** — directly adapted from reference implementation, all existing tools.
+
+### Conversation Gating
+
+Current `attempt_conversation()` already makes an LLM call to decide `ConversationDecision.should_talk`. The gap is conversation termination: the reference implementation checks `end_conversation` in each `ConversationTurn`, but also has an explicit repetition detector — if an agent produces nearly identical text to a prior turn, end early without another LLM call.
+
+Simple Python implementation using token overlap (no new library):
+
+```python
+def _is_repetitive(turn: str, history: list[str], threshold: float = 0.7) -> bool:
+    """Return True if >70% of turn tokens appear in the most recent prior turn."""
+    if not history:
+        return False
+    turn_tokens = set(turn.lower().split())
+    prev_tokens = set(history[-1].lower().split())
+    if not turn_tokens:
+        return False
+    overlap = len(turn_tokens & prev_tokens) / len(turn_tokens)
+    return overlap >= threshold
+```
+
+This avoids an extra LLM call (poignancy scoring, repetition check). **Confidence: HIGH.**
+
+### `asyncio.Semaphore` for LLM Concurrency
+
+Already documented in v1.0 STACK.md and the existing code. The simulation has `asyncio.TaskGroup` running all agents concurrently but no global cap on simultaneous LLM calls. At 25 agents each making 3-5 LLM calls per tick, this can hit API rate limits.
+
+Add a module-level semaphore in `gateway.py`:
+
+```python
+_LLM_SEMAPHORE = asyncio.Semaphore(8)  # max 8 concurrent LLM calls across all agents
+
+async def complete_structured(...) -> T:
+    async with _LLM_SEMAPHORE:
+        # existing retry logic
+```
+
+8 concurrent calls is the right default for OpenRouter's free tier (10 RPM limit). For Ollama, reduce to 2-3 since local models serialize anyway. Make this configurable via an env var rather than hardcoding.
+
+**Confidence: HIGH** — `asyncio.Semaphore` is stdlib, no new dependencies.
+
+### LiteLLM In-Memory Cache
+
+LiteLLM ships with a built-in cache system (`litellm.cache = Cache()`). The cache key is the model name + message content hash. For agent simulation, this is useful for **schedule generation** (same agent + same day → identical LLM call at re-init) but NOT for per-tick decisions (messages include perception data which changes every tick).
+
+Enable selectively, only for slow expensive calls:
+
+```python
+from litellm.caching.caching import Cache
+litellm.cache = Cache()  # in-memory, no infrastructure
+
+# In generate_daily_schedule():
+result = await complete_structured(..., caching=True)   # cache this
+
+# In decide_action():
+result = await complete_structured(..., caching=False)  # never cache decisions
+```
+
+Cost/benefit: schedule generation is ~2 LLM calls per agent per sim init. With 10 agents, this is 20 calls saved per restart. Small gain but zero risk.
+
+**Confidence: MEDIUM** — LiteLLM cache docs confirm the API pattern. Cache key details (whether messages are hashed including system prompt) were not independently verified. Test before relying on this.
+
+---
+
+## Reflection System
+
+### What It Is
+
+From the Generative Agents paper and reference implementation: agents accumulate "poignancy" (emotional weight) as they observe events and have conversations. When the accumulator crosses a threshold (~150 in the reference), the agent runs a reflection pass — an LLM call that synthesizes recent high-importance memories into abstract "thoughts" stored back into the memory stream.
+
+### Implementation Components
+
+All of this fits within existing infrastructure:
+
+**1. Poignancy accumulation (no LLM)**
+The `add_memory()` call already takes an `importance` parameter (1-10). The reflection system needs to sum these into a per-agent counter. Add `poignancy_accumulator: float = 0.0` to the Agent class (or `AgentState` dataclass in v1.0 code). Increment on every `add_memory()` call.
+
+**2. Importance scoring LLM call (already in `schemas.py`)**
+`ImportanceScore` schema already exists. The reference calls `score_importance()` for every new observation. Currently, the codebase hardcodes `importance=3` for routine actions and `importance=8` for injected events. The reflection system needs actual LLM-scored importance for the accumulator to be meaningful.
+
+Add `score_importance()` to the cognition layer — one new LLM call per memory added. This is expensive (~1 LLM call per observation, per agent, per tick). Mitigation: score only observations from perception (other agents, events), not routine action memories. Injected events keep hardcoded importance=8.
+
+**3. Reflection trigger (no LLM)**
+```python
+POIGNANCY_THRESHOLD = 150  # from reference implementation
+
+async def maybe_reflect(agent: Agent, sim_id: str) -> None:
+    if agent.poignancy_accumulator < POIGNANCY_THRESHOLD:
+        return
+    await reflect(agent, sim_id)
+    agent.poignancy_accumulator = 0.0
+```
+
+**4. Reflection LLM calls (2-3 calls per reflection)**
+Based on reference `agent.reflect()`:
+- Call 1: "What are the 3 most important questions based on these memories?" (focus identification)
+- Call 2: For each focus question, retrieve related memories and synthesize insights
+- Call 3 (optional): Summarize recent conversations into relationship/planning thoughts
+
+New Pydantic schemas needed:
+- `ReflectionFocus(questions: list[str])` — output of Call 1
+- `ReflectionInsight(insight: str, evidence_ids: list[str])` — output of Call 2
+
+Both are simple instructor calls using `complete_structured()`. No new dependencies.
+
+**5. Storing reflections as thoughts**
+Reflections are stored in ChromaDB with `memory_type="thought"` (the existing `Memory` schema already has this). The `thought` type is retrieved in future memory queries automatically through existing `retrieve_memories()`.
+
+Wait — the current `Memory` schema only allows `Literal["observation", "conversation", "action", "event"]`. Add `"thought"` to this union for v1.1.
+
+**Confidence: HIGH** — all components use existing tools. The only risk is LLM call volume: reflection adds 2-3 extra calls when triggered. With 10 agents and frequent events, this could add 20-30 LLM calls per reflection cycle. Mitigation: run reflection asynchronously (don't block the tick loop), log when it fires, start with a higher threshold if costs are a concern.
+
+---
+
+## Relationship Tracking
+
+The PROJECT.md v1.1 targets mention "relationship tracking" in the agent behavior fidelity cluster. The reference implementation stores per-agent relationship data in the `associate` memory module, retrieved during conversation decisions to determine rapport.
+
+For v1.1, this can be approximated with existing ChromaDB memory storage: conversation memories already include both agent names. Relationship strength is retrievable by querying memories that mention both agents. No new data structure needed — the existing memory stream is sufficient for relationship context in prompts.
+
+A dedicated relationship store (e.g., a dict `relationships: dict[str, dict[str, float]]` on the Agent class) is premature optimization for v1.1. Add it only if prompts show that retrieved memories don't provide enough relationship context.
+
+**Confidence: MEDIUM** — this is an approximation of the reference's approach, not a direct port. Validate with actual prompt outputs before investing in a dedicated structure.
+
+---
+
+## No New Dependencies Required
+
+Explicit confirmation that no `uv add` / `npm install` calls are needed for v1.1:
+
+| Feature | Implementation | Dependency |
+|---------|---------------|------------|
+| Agent/Building/Event OOP classes | stdlib `@dataclass` | None |
+| Building wall outlines | `Graphics.stroke()` | PixiJS 8.17 (installed) |
+| Readable text labels | Increase `fontSize` on existing `pixiText` | PixiJS 8.17 (installed) |
+| 3-level LLM decisions | New prompt functions + Pydantic schemas | instructor (installed) |
+| Conversation gating (repetition) | Token overlap in Python | None |
+| LLM concurrency cap | `asyncio.Semaphore` | None (stdlib) |
+| LiteLLM in-memory cache | `litellm.caching.caching.Cache` | LiteLLM (installed) |
+| Reflection system | New prompts + schemas | instructor + pydantic (installed) |
+| Importance scoring | New `score_importance()` cognition call | instructor (installed) |
+| Memory type "thought" | Extend `Memory` Literal in schemas.py | None |
+
+---
+
+## What NOT to Add
+
+| Avoid | Why |
+|-------|-----|
+| `aiometer` / `aiolimiter` | `asyncio.Semaphore` in gateway.py handles all concurrency limiting without additional dependencies |
+| `abc.ABC` base classes for agents | All agents run identical code paths; ABC enforces subclass contracts that are explicitly out of scope |
+| Redis for LiteLLM caching | Single-user simulation; in-memory cache is sufficient and zero-ops |
+| Sprite sheet / texture atlas | Agent circles are drawn as PixiJS Graphics, not sprites; no texture assets needed for v1.1 |
+| `BitmapText` | Worth evaluating only if 25-agent text updates cause frame drops; not needed upfront |
+| `pixi-tilemap` / `pixi-tiledmap` | Town map is currently hand-coded JSON; no Tiled editor files exist; importing a tile loader adds complexity without benefit until map authoring moves to Tiled |
+| PydanticAI / LangGraph | These frameworks impose architectures that conflict with the paper's agent design; all reflection/planning logic stays as direct `complete_structured()` calls |
+
+---
+
+## Version Compatibility (v1.1 Specific)
+
+| Pair | Note |
+|------|------|
+| PixiJS 8.17 `Graphics.stroke()` | The `stroke()` call must follow `fill()` in v8. The old v7 pattern `lineStyle()` before drawing is removed. Current code uses `setFillStyle()` + `fill()` correctly; add `.stroke()` after each `.fill()` call. |
+| `litellm.caching.caching.Cache` import path | The cache module path changed in LiteLLM 1.60+ from `litellm.cache` to `litellm.caching.caching`. The 1.83+ versions installed use the new path. |
+| `Memory` Pydantic `Literal` extension | Adding `"thought"` to the `memory_type` Literal breaks existing ChromaDB documents that lack this type. Existing records are unaffected — ChromaDB metadata is stored as strings and not re-validated. Only new writes use the updated model. |
+| `asyncio.Semaphore` in async context | The semaphore must be created inside the async context (inside the FastAPI lifespan or app startup), not at module-import time, to avoid "no running event loop" errors. |
 
 ---
 
 ## Sources
 
-- FastAPI WebSocket docs: https://fastapi.tiangolo.com/advanced/websockets/
-- FastAPI latest release (0.135.x): https://pypi.org/project/fastapi/
-- PixiJS v8 stable (8.17.1): https://pixijs.com/blog/8.13.0
-- @pixi/react v8 launch (March 2025): https://pixijs.com/blog/pixi-react-v8-live
-- Phaser v4 RC1 (April 2025): https://phaser.io/news/2025/04/phaser-v4-release-candidate-1
-- LiteLLM PyPI (1.83.x, April 2026): https://pypi.org/project/litellm/
-- LiteLLM supply-chain incident (1.82.7–1.82.8): https://docs.litellm.ai/blog/security-update-march-2026
-- ChromaDB local persistence: https://johal.in/chroma-db-python-local-persistence-for-llm-memory-stores-2025-2/
-- instructor (Pydantic structured output): https://python.useinstructor.com/
-- Zustand for WebSocket state: https://github.com/pmndrs/zustand
-- Vite + React TypeScript standard setup: https://vite.dev/guide/
-- asyncio concurrency patterns for LLM calls: https://python.useinstructor.com/blog/2023/11/13/learn-async/
-- pixi-tiledmap (PixiJS v8 Tiled loader): https://www.npmjs.com/package/pixi-tiledmap
-- Vector database comparison 2025: https://liquidmetal.ai/casesAndBlogs/vector-comparison/
-- FastAPI + SQLite persistence: https://fastapi.tiangolo.com/tutorial/sql-databases/
-- Phaser vs PixiJS comparison: https://dev.to/ritza/phaser-vs-pixijs-for-making-2d-games-2j8c
-- uv package manager: https://astral.sh/uv
+- PixiJS v8 Graphics API — stroke/fill method order: https://pixijs.com/8.x/guides/components/scene-objects/graphics
+- PixiJS v8 performance tips — Graphics objects fastest when not modified constantly; BitmapText for dynamic text: https://pixijs.com/8.x/guides/concepts/performance-tips
+- PixiJS v8 BitmapText — pre-rasterized glyph atlas, MSDF support: https://pixijs.com/8.x/guides/components/scene-objects/text/bitmap
+- PixiJS StrokeStyle interface — width, color, alpha, join, pixelLine: https://pixijs.download/dev/docs/scene.StrokeStyle.html
+- LiteLLM in-memory cache setup: https://docs.litellm.ai/docs/caching/local_caching
+- LiteLLM batch completion (async note): https://docs.litellm.ai/docs/completion/batching
+- asyncio.Semaphore for LLM rate limiting: https://python.useinstructor.com/blog/2023/11/13/learn-async/
+- Reference reflection implementation: GenerativeAgentsCN/generative_agents/modules/agent.py lines 335-383
+- Reference 3-level action determination: GenerativeAgentsCN/generative_agents/modules/agent.py lines 419-457
+- Python dataclasses stdlib docs: https://docs.python.org/3/library/dataclasses.html
+- PixiJS v8.17 release (Text/BitmapText parity): https://pixijs.com/blog/8.16.0
+
+---
+
+*Stack research for: Agent Town v1.1 — OOP refactoring, UI polish, LLM optimization, reflection system*
+*Researched: 2026-04-10*
