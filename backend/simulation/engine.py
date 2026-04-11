@@ -222,6 +222,12 @@ class SimulationEngine:
                 self._sim_minute = 0
                 self._sim_hour = (self._sim_hour + 1) % 24
 
+            # Eject agents from buildings that just closed (D-09, Pitfall 5 guard)
+            # Runs exactly once per hour change — _last_ejection_hour prevents re-firing
+            if self._sim_hour != self._last_ejection_hour:
+                self._last_ejection_hour = self._sim_hour
+                await self._eject_agents_from_closed_buildings()
+
             await asyncio.sleep(TICK_INTERVAL)
 
     async def _agent_step_safe(self, agent_name: str, agent: Agent) -> None:
@@ -385,6 +391,44 @@ class SimulationEngine:
         if building is None:
             return True  # unknown sectors are always accessible
         return building.is_open(self._sim_hour)
+
+    async def _eject_agents_from_closed_buildings(self) -> None:
+        """Eject agents from buildings that just closed (D-09).
+
+        Called ONLY when _sim_hour changes (Pitfall 5 guard prevents LLM call
+        multiplication by ensuring ejection runs at most once per hour, not every tick).
+
+        For each agent, checks whether the sector tile they occupy has a Building
+        whose is_open() returns False at the current sim hour. If so:
+        - Clears the agent's path (so movement loop stops)
+        - Sets current_activity to "leaving (building closed)"
+        - Emits an agent_update broadcast so clients see the state change immediately
+
+        The agent will get a fresh decide_action call on the next tick, with the
+        closed building already excluded from open_locations.
+
+        Agents on road tiles (address length < 2) or tiles with unknown sectors are
+        never ejected.
+        """
+        for name, agent in self._agents.items():
+            if not self.maze:
+                continue
+            try:
+                tile = self.maze.tile_at(agent.coord)
+            except (IndexError, Exception):
+                continue
+            if not tile or len(tile.address) < 2:
+                continue  # road tile or unenrolled tile — not in a building sector
+            sector = tile.address[1]  # e.g. "cafe", "stock-exchange"
+            building = self._buildings.get(sector)
+            if building and not building.is_open(self._sim_hour):
+                agent.path = []
+                agent.current_activity = "leaving (building closed)"
+                await self._emit_agent_update(name, agent)
+                logger.info(
+                    "%s ejected from closed %s at sim hour %d",
+                    name, sector, self._sim_hour,
+                )
 
     async def _emit_agent_update(self, agent_name: str, agent: Agent) -> None:
         """Broadcast agent position and activity to all connected clients.
