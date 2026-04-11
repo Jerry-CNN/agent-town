@@ -7,9 +7,10 @@ import { MapCanvas } from "./MapCanvas";
 
 interface LayoutProps {
   selectedAgentId: string | null;
+  onOpenSettings: () => void;
 }
 
-export function Layout({ selectedAgentId }: LayoutProps) {
+export function Layout({ selectedAgentId, onOpenSettings }: LayoutProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   return (
@@ -40,6 +41,22 @@ export function Layout({ selectedAgentId }: LayoutProps) {
           Agent Town
         </span>
         <div style={{ flex: 1 }} />
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          title="LLM Provider Settings"
+          style={{
+            padding: "4px 10px",
+            background: "rgba(255,255,255,0.1)",
+            border: "1px solid rgba(255,255,255,0.2)",
+            borderRadius: "4px",
+            color: "#e0e0e0",
+            cursor: "pointer",
+            fontSize: "14px",
+          }}
+        >
+          Settings
+        </button>
         <button
           type="button"
           onClick={() => setIsSidebarCollapsed((v) => !v)}

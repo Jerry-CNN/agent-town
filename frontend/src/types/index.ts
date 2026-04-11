@@ -40,7 +40,8 @@ export type WSMessageType =
   | "error"
   | "pause"
   | "resume"
-  | "inject_event";
+  | "inject_event"
+  | "tick_interval_update";
 
 export interface WSMessage {
   type: WSMessageType;
@@ -56,6 +57,7 @@ export interface SimulationStore {
   isPaused: boolean;
   selectedAgentId: string | null;
   providerConfig: ProviderConfig | null;
+  tickInterval: number;
 
   // Actions
   setAgents: (agents: Record<string, AgentState>) => void;
@@ -67,5 +69,6 @@ export interface SimulationStore {
   setSelectedAgent: (id: string | null) => void;
   setProviderConfig: (config: ProviderConfig) => void;
   setSendMessage: (fn: ((msg: WSMessage) => void) | null) => void;
+  setTickInterval: (interval: number) => void;
   reset: () => void;
 }

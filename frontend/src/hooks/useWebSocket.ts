@@ -59,11 +59,15 @@ export function useWebSocket(url: string): void {
             const payload = msg.payload as {
               agents?: Array<{ name: string; coord: [number, number]; activity: string }>;
               simulation_status?: string;
+              tick_interval?: number;
             };
             if (Array.isArray(payload.agents)) {
               store.updateAgentsFromSnapshot(payload.agents);
             }
             store.setPaused(payload.simulation_status === "paused");
+            if (typeof payload.tick_interval === "number") {
+              store.setTickInterval(payload.tick_interval);
+            }
             break;
           }
           case "agent_update": {
@@ -101,6 +105,13 @@ export function useWebSocket(url: string): void {
           case "ping":
             // Server won't send pings to client; ignore if received
             break;
+          case "tick_interval_update": {
+            const payload = msg.payload as { tick_interval?: number };
+            if (typeof payload.tick_interval === "number") {
+              store.setTickInterval(payload.tick_interval);
+            }
+            break;
+          }
           default:
             console.warn("[useWebSocket] Unknown message type:", (msg as WSMessage).type);
         }

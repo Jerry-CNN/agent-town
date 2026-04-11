@@ -17,6 +17,7 @@ const initialState = {
   isPaused: false,
   selectedAgentId: null as string | null,
   providerConfig: null as ProviderConfig | null,
+  tickInterval: 10,
 };
 
 export const useSimulationStore = create<SimulationStore>()((set) => ({
@@ -66,6 +67,8 @@ export const useSimulationStore = create<SimulationStore>()((set) => ({
   setSelectedAgent: (id: string | null) => set({ selectedAgentId: id }),
 
   setProviderConfig: (config: ProviderConfig) => set({ providerConfig: config }),
+
+  setTickInterval: (interval: number) => set({ tickInterval: interval }),
 
   setSendMessage: (fn: ((msg: WSMessage) => void) | null) => {
     _sendMessage = fn;

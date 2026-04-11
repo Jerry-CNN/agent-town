@@ -6,6 +6,7 @@ export function BottomBar() {
   const isPaused = useSimulationStore((state) => state.isPaused);
   const providerConfig = useSimulationStore((state) => state.providerConfig);
   const agents = useSimulationStore((state) => state.agents);
+  const tickInterval = useSimulationStore((state) => state.tickInterval);
   const agentKeys = useMemo(() => Object.keys(agents), [agents]);
 
   const [eventText, setEventText] = useState("");
@@ -212,6 +213,21 @@ export function BottomBar() {
         }}
       >
         {providerConfig?.provider ?? "not configured"}
+      </div>
+
+      {/* Adaptive tick interval display (D-06) */}
+      <div
+        style={{
+          padding: "4px 10px",
+          background: "rgba(255,255,255,0.08)",
+          borderRadius: "4px",
+          fontSize: "11px",
+          color: "#9ca3af",
+          whiteSpace: "nowrap",
+          flexShrink: 0,
+        }}
+      >
+        Tick: {tickInterval}s
       </div>
     </div>
   );

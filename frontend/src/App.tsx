@@ -11,6 +11,7 @@ function App() {
   const selectedAgentId = useSimulationStore((s) => s.selectedAgentId);
 
   const [ollamaAvailable, setOllamaAvailable] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
 
   const hasHydrated = useRef(false);
   useEffect(() => {
@@ -55,9 +56,17 @@ function App() {
 
   return (
     <>
-      {providerConfig === null && <ProviderSetup />}
+      {(providerConfig === null || showSettings) && (
+        <ProviderSetup
+          onClose={providerConfig !== null ? () => setShowSettings(false) : undefined}
+          initialConfig={providerConfig}
+        />
+      )}
       <OllamaStatusBanner ollamaAvailable={ollamaAvailable} />
-      <Layout selectedAgentId={selectedAgentId} />
+      <Layout
+        selectedAgentId={selectedAgentId}
+        onOpenSettings={() => setShowSettings(true)}
+      />
     </>
   );
 }
