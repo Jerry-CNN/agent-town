@@ -470,6 +470,11 @@ class SimulationEngine:
                 memory_type="event",
                 importance=8,
             )
+            # Clear the agent's current path so they make a fresh LLM decision
+            # on the next tick instead of continuing to walk to their old destination.
+            state = self._agent_states.get(agent_name)
+            if state:
+                state.path = []
 
     def pause(self) -> None:
         """Pause the simulation — blocks the tick loop at the next Event.wait().
