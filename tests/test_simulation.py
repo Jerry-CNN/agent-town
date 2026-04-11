@@ -83,9 +83,9 @@ async def test_agents_run_concurrently():
     engine = SimulationEngine(maze=maze, agents=configs, simulation_id="test-concurrent")
 
     # Pre-populate agent states (normally done in initialize)
-    from backend.simulation.engine import AgentState
+    from backend.agents.agent import Agent
     for cfg in configs:
-        engine._agent_states[cfg.name] = AgentState(
+        engine._agents[cfg.name] = Agent(
             name=cfg.name,
             config=cfg,
             coord=cfg.coord,
@@ -105,8 +105,8 @@ async def test_agents_run_concurrently():
 
     start_all = time.monotonic()
     async with asyncio.TaskGroup() as tg:
-        for name, state in engine._agent_states.items():
-            tg.create_task(engine._agent_step_safe(name, state))
+        for name, agent in engine._agents.items():
+            tg.create_task(engine._agent_step_safe(name, agent))
     elapsed = time.monotonic() - start_all
 
     # With parallelism, 3 agents at 0.05s each should finish well under 0.15s
@@ -118,7 +118,8 @@ async def test_agents_run_concurrently():
 @pytest.mark.asyncio
 async def test_exception_isolation():
     """One agent's RuntimeError does not cancel or fail other agents."""
-    from backend.simulation.engine import SimulationEngine, AgentState
+    from backend.simulation.engine import SimulationEngine
+    from backend.agents.agent import Agent
 
     maze = _make_small_maze()
     configs = [
@@ -130,7 +131,7 @@ async def test_exception_isolation():
     completed_agents = []
 
     for cfg in configs:
-        engine._agent_states[cfg.name] = AgentState(
+        engine._agents[cfg.name] = Agent(
             name=cfg.name,
             config=cfg,
             coord=cfg.coord,
@@ -148,8 +149,8 @@ async def test_exception_isolation():
 
     # Should NOT raise any exception to the caller
     async with asyncio.TaskGroup() as tg:
-        for name, state in engine._agent_states.items():
-            tg.create_task(engine._agent_step_safe(name, state))
+        for name, agent in engine._agents.items():
+            tg.create_task(engine._agent_step_safe(name, agent))
 
     assert "AgentB" in completed_agents, "AgentB should complete despite AgentA failing"
     assert "AgentA" not in completed_agents, "AgentA raised an error and did not complete"
@@ -181,13 +182,14 @@ async def test_pause_halts_next_tick():
 @pytest.mark.asyncio
 async def test_resume_restores_state():
     """After pause+resume, agent state modifications are preserved (no reset on resume)."""
-    from backend.simulation.engine import SimulationEngine, AgentState
+    from backend.simulation.engine import SimulationEngine
+    from backend.agents.agent import Agent
 
     maze = _make_small_maze()
     cfg = _make_agent_config("Alice", (5, 5))
     engine = SimulationEngine(maze=maze, agents=[cfg], simulation_id="test-resume")
 
-    engine._agent_states["Alice"] = AgentState(
+    engine._agents["Alice"] = Agent(
         name="Alice",
         config=cfg,
         coord=cfg.coord,
@@ -201,23 +203,23 @@ async def test_resume_restores_state():
     assert not engine._running.is_set()
 
     # Mutate agent state while paused
-    engine._agent_states["Alice"].current_activity = "paused_test"
+    engine._agents["Alice"].current_activity = "paused_test"
 
     # Resume engine
     engine.resume()
     assert engine._running.is_set()
 
     # State should be preserved after resume
-    assert engine._agent_states["Alice"].current_activity == "paused_test", \
+    assert engine._agents["Alice"].current_activity == "paused_test", \
         "Agent state should not be reset on resume"
 
 
-def test_agent_state_dataclass():
-    """AgentState can be created from AgentConfig with mutable fields."""
-    from backend.simulation.engine import AgentState
+def test_agent_dataclass():
+    """Agent can be created from AgentConfig with mutable fields."""
+    from backend.agents.agent import Agent
 
     cfg = _make_agent_config("TestAgent", (3, 4))
-    state = AgentState(
+    agent = Agent(
         name=cfg.name,
         config=cfg,
         coord=cfg.coord,
@@ -226,19 +228,19 @@ def test_agent_state_dataclass():
         schedule=[],
     )
 
-    assert state.name == "TestAgent"
-    assert state.coord == (3, 4)
-    assert state.path == [(4, 4), (5, 4)]
-    assert state.current_activity == cfg.currently
+    assert agent.name == "TestAgent"
+    assert agent.coord == (3, 4)
+    assert agent.path == [(4, 4), (5, 4)]
+    assert agent.current_activity == cfg.currently
 
     # Verify mutable -- can update without errors
-    state.coord = (5, 5)
-    state.path.pop(0)
-    state.current_activity = "walking"
+    agent.coord = (5, 5)
+    agent.path.pop(0)
+    agent.current_activity = "walking"
 
-    assert state.coord == (5, 5)
-    assert state.path == [(5, 4)]
-    assert state.current_activity == "walking"
+    assert agent.coord == (5, 5)
+    assert agent.path == [(5, 4)]
+    assert agent.current_activity == "walking"
 
 
 # ---------------------------------------------------------------------------
@@ -281,20 +283,21 @@ async def test_initialize_generates_schedules():
         assert mock_gen.call_count == 2, f"Expected 2 schedule calls, got {mock_gen.call_count}"
 
         # Both agents should have their schedules set
-        assert len(engine._agent_states["Alice"].schedule) == 3
-        assert len(engine._agent_states["Bob"].schedule) == 3
+        assert len(engine._agents["Alice"].schedule) == 3
+        assert len(engine._agents["Bob"].schedule) == 3
 
 
 @pytest.mark.asyncio
 async def test_movement_one_tile_per_tick():
     """Agent advances exactly one tile per tick when a path is set."""
-    from backend.simulation.engine import SimulationEngine, AgentState
+    from backend.simulation.engine import SimulationEngine
+    from backend.agents.agent import Agent
 
     maze = _make_small_maze()
     cfg = _make_agent_config("Alice", (5, 5))
     engine = SimulationEngine(maze=maze, agents=[cfg], simulation_id="test-movement")
 
-    engine._agent_states["Alice"] = AgentState(
+    engine._agents["Alice"] = Agent(
         name="Alice",
         config=cfg,
         coord=(5, 5),
@@ -306,7 +309,6 @@ async def test_movement_one_tile_per_tick():
     with (
         patch("backend.simulation.engine.perceive") as mock_perceive,
         patch("backend.simulation.engine.decide_action", new_callable=AsyncMock),
-        patch("backend.simulation.engine.attempt_conversation", new_callable=AsyncMock),
     ):
         from backend.schemas import PerceptionResult
         mock_perceive.return_value = PerceptionResult(
@@ -314,17 +316,16 @@ async def test_movement_one_tile_per_tick():
         )
 
         # First tick — advance one tile
-        await engine._agent_step("Alice", engine._agent_states["Alice"])
+        await engine._agent_step("Alice", engine._agents["Alice"])
 
-    assert engine._agent_states["Alice"].coord == (6, 5), \
-        f"Expected (6,5), got {engine._agent_states['Alice'].coord}"
-    assert engine._agent_states["Alice"].path == [(7, 5), (8, 5)], \
-        f"Expected [(7,5),(8,5)], got {engine._agent_states['Alice'].path}"
+    assert engine._agents["Alice"].coord == (6, 5), \
+        f"Expected (6,5), got {engine._agents['Alice'].coord}"
+    assert engine._agents["Alice"].path == [(7, 5), (8, 5)], \
+        f"Expected [(7,5),(8,5)], got {engine._agents['Alice'].path}"
 
     with (
         patch("backend.simulation.engine.perceive") as mock_perceive,
         patch("backend.simulation.engine.decide_action", new_callable=AsyncMock),
-        patch("backend.simulation.engine.attempt_conversation", new_callable=AsyncMock),
     ):
         from backend.schemas import PerceptionResult
         mock_perceive.return_value = PerceptionResult(
@@ -332,22 +333,23 @@ async def test_movement_one_tile_per_tick():
         )
 
         # Second tick — advance another tile
-        await engine._agent_step("Alice", engine._agent_states["Alice"])
+        await engine._agent_step("Alice", engine._agents["Alice"])
 
-    assert engine._agent_states["Alice"].coord == (7, 5), \
-        f"Expected (7,5) after second tick, got {engine._agent_states['Alice'].coord}"
+    assert engine._agents["Alice"].coord == (7, 5), \
+        f"Expected (7,5) after second tick, got {engine._agents['Alice'].coord}"
 
 
 @pytest.mark.asyncio
 async def test_movement_skips_decide_when_path_exists():
     """When agent has a path, decide_action is NOT called (movement tick only)."""
-    from backend.simulation.engine import SimulationEngine, AgentState
+    from backend.simulation.engine import SimulationEngine
+    from backend.agents.agent import Agent
 
     maze = _make_small_maze()
     cfg = _make_agent_config("Alice", (5, 5))
     engine = SimulationEngine(maze=maze, agents=[cfg], simulation_id="test-skip-decide")
 
-    engine._agent_states["Alice"] = AgentState(
+    engine._agents["Alice"] = Agent(
         name="Alice",
         config=cfg,
         coord=(5, 5),
@@ -359,14 +361,13 @@ async def test_movement_skips_decide_when_path_exists():
     with (
         patch("backend.simulation.engine.perceive") as mock_perceive,
         patch("backend.simulation.engine.decide_action", new_callable=AsyncMock) as mock_decide,
-        patch("backend.simulation.engine.attempt_conversation", new_callable=AsyncMock),
     ):
         from backend.schemas import PerceptionResult
         mock_perceive.return_value = PerceptionResult(
             nearby_events=[], nearby_agents=[], location="agent-town"
         )
 
-        await engine._agent_step("Alice", engine._agent_states["Alice"])
+        await engine._agent_step("Alice", engine._agents["Alice"])
 
         # decide_action should NOT be called during a movement tick
         mock_decide.assert_not_called()
@@ -375,13 +376,14 @@ async def test_movement_skips_decide_when_path_exists():
 @pytest.mark.asyncio
 async def test_decide_computes_new_path():
     """When no path exists, decide_action is called and a new path is computed."""
-    from backend.simulation.engine import SimulationEngine, AgentState
+    from backend.simulation.engine import SimulationEngine
+    from backend.agents.agent import Agent
 
     maze = _make_small_maze()
     cfg = _make_agent_config("Alice", (5, 5))
     engine = SimulationEngine(maze=maze, agents=[cfg], simulation_id="test-decide-path")
 
-    engine._agent_states["Alice"] = AgentState(
+    engine._agents["Alice"] = Agent(
         name="Alice",
         config=cfg,
         coord=(5, 5),
@@ -400,7 +402,6 @@ async def test_decide_computes_new_path():
     with (
         patch("backend.simulation.engine.perceive") as mock_perceive,
         patch("backend.simulation.engine.decide_action", new_callable=AsyncMock) as mock_decide,
-        patch("backend.simulation.engine.attempt_conversation", new_callable=AsyncMock),
         patch("backend.simulation.engine.add_memory", new_callable=AsyncMock),
     ):
         mock_perceive.return_value = PerceptionResult(
@@ -412,18 +413,19 @@ async def test_decide_computes_new_path():
         maze.resolve_destination = MagicMock(return_value=(3, 3))
         maze.find_path = MagicMock(return_value=[(5, 5), (4, 5), (3, 5), (3, 4), (3, 3)])
 
-        await engine._agent_step("Alice", engine._agent_states["Alice"])
+        await engine._agent_step("Alice", engine._agents["Alice"])
 
     # First element (current position) should be popped — path starts from next tile
-    assert engine._agent_states["Alice"].path == [(4, 5), (3, 5), (3, 4), (3, 3)], \
-        f"Expected path without first element, got {engine._agent_states['Alice'].path}"
-    assert engine._agent_states["Alice"].current_activity == "getting coffee", \
-        f"Expected 'getting coffee', got {engine._agent_states['Alice'].current_activity}"
+    assert engine._agents["Alice"].path == [(4, 5), (3, 5), (3, 4), (3, 3)], \
+        f"Expected path without first element, got {engine._agents['Alice'].path}"
+    assert engine._agents["Alice"].current_activity == "getting coffee", \
+        f"Expected 'getting coffee', got {engine._agents['Alice'].current_activity}"
 
 
 def test_get_snapshot():
     """get_snapshot() returns correct agent positions, activities, and simulation status."""
-    from backend.simulation.engine import SimulationEngine, AgentState
+    from backend.simulation.engine import SimulationEngine
+    from backend.agents.agent import Agent
 
     maze = _make_small_maze()
     configs = [
@@ -432,7 +434,7 @@ def test_get_snapshot():
     ]
     engine = SimulationEngine(maze=maze, agents=configs, simulation_id="test-snapshot")
 
-    engine._agent_states["Alice"] = AgentState(
+    engine._agents["Alice"] = Agent(
         name="Alice",
         config=configs[0],
         coord=(3, 3),
@@ -440,7 +442,7 @@ def test_get_snapshot():
         current_activity="drinking coffee",
         schedule=[],
     )
-    engine._agent_states["Bob"] = AgentState(
+    engine._agents["Bob"] = Agent(
         name="Bob",
         config=configs[1],
         coord=(7, 7),
@@ -701,7 +703,7 @@ async def test_broadcast_reaches_all_clients():
 async def test_full_lifecycle():
     """Integration: initialize engine, verify schedules, snapshot, pause/resume."""
     from unittest.mock import AsyncMock, patch
-    from backend.simulation.engine import SimulationEngine, AgentState
+    from backend.simulation.engine import SimulationEngine
     from backend.simulation.connection_manager import ConnectionManager
     from backend.schemas import ScheduleEntry
 
@@ -737,12 +739,12 @@ async def test_full_lifecycle():
         await engine.initialize()
 
         # Both agents should have schedules
-        assert len(engine._agent_states["Alice"].schedule) == 3, "Alice should have 3 schedule entries"
-        assert len(engine._agent_states["Bob"].schedule) == 3, "Bob should have 3 schedule entries"
+        assert len(engine._agents["Alice"].schedule) == 3, "Alice should have 3 schedule entries"
+        assert len(engine._agents["Bob"].schedule) == 3, "Bob should have 3 schedule entries"
 
         # Both agents should have initial coords
-        assert engine._agent_states["Alice"].coord == (5, 5)
-        assert engine._agent_states["Bob"].coord == (3, 3)
+        assert engine._agents["Alice"].coord == (5, 5)
+        assert engine._agents["Bob"].coord == (3, 3)
 
         # get_snapshot should return 2 agents with correct data
         snapshot = engine.get_snapshot()
@@ -775,7 +777,8 @@ async def test_full_lifecycle():
 async def test_broadcast_callback_integration():
     """Engine._emit_agent_update calls the wired broadcast callback correctly."""
     from unittest.mock import AsyncMock, patch
-    from backend.simulation.engine import SimulationEngine, AgentState
+    from backend.simulation.engine import SimulationEngine
+    from backend.agents.agent import Agent
     from backend.main import _make_broadcast_callback
     from backend.simulation.connection_manager import ConnectionManager
     import json
@@ -795,7 +798,7 @@ async def test_broadcast_callback_integration():
     engine._broadcast_callback = _make_broadcast_callback(manager)
 
     # Pre-populate agent state
-    engine._agent_states["Alice"] = AgentState(
+    engine._agents["Alice"] = Agent(
         name="Alice",
         config=cfg,
         coord=(5, 5),
@@ -805,7 +808,7 @@ async def test_broadcast_callback_integration():
     )
 
     # Directly call the emit method to trigger the broadcast callback
-    await engine._emit_agent_update("Alice", engine._agent_states["Alice"])
+    await engine._emit_agent_update("Alice", engine._agents["Alice"])
 
     assert len(broadcast_messages) == 1, f"Expected 1 broadcast message, got {len(broadcast_messages)}"
     msg = broadcast_messages[0]

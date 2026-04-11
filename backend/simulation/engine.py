@@ -9,7 +9,7 @@ Design decisions implemented here:
   - D-02: All agents run concurrently via asyncio.TaskGroup (Python 3.11+)
   - D-03: Daily schedules generated for all agents before first tick in initialize()
   - D-07: Pause uses asyncio.Event flag; tick loop blocks on Event.wait()
-  - D-09/D-10: One tile per tick along BFS path stored in AgentState.path
+  - D-09/D-10: One tile per tick along BFS path stored in Agent.path
   - T-04-01: Per-agent exception isolation in _agent_step_safe() — one failure
     never cancels sibling agents or crashes the loop
   - T-04-02: Each agent's initialize step isolated; single failure logged, not fatal
@@ -24,14 +24,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
 from typing import Callable
 
 from backend.schemas import AgentConfig, ScheduleEntry
 from backend.simulation.world import Maze
+from backend.agents.agent import Agent
 from backend.agents.cognition.perceive import perceive
 from backend.agents.cognition.decide import decide_action
-from backend.agents.cognition.converse import attempt_conversation, run_conversation
 from backend.agents.cognition.plan import generate_daily_schedule
 from backend.agents.memory.store import add_memory, reset_simulation
 
@@ -40,31 +39,6 @@ logger = logging.getLogger(__name__)
 # D-01: Tick interval in seconds. Within the 5-10s decision range from D-01.
 # Actual tick duration is max(TICK_INTERVAL, slowest_agent_LLM_time) per D-02.
 TICK_INTERVAL: int = 30
-
-
-@dataclass
-class AgentState:
-    """Runtime simulation state for one agent — mutable each tick.
-
-    Decoupled from the static AgentConfig loaded from JSON so the simulation
-    can track evolving runtime properties (position, path, schedule) separately
-    from the agent's fixed personality/background.
-
-    Attributes:
-        name:             Agent display name (matches AgentConfig.name).
-        config:           Static AgentConfig (personality, spatial knowledge).
-        coord:            Current tile position (x, y). Updated each tick.
-        path:             Remaining BFS path tiles to traverse (D-10).
-                          Each tick pops one tile from the front.
-        current_activity: What the agent is doing now (broadcast to clients).
-        schedule:         Remaining ScheduleEntry list — modified by conversations.
-    """
-    name: str
-    config: AgentConfig
-    coord: tuple[int, int]
-    path: list[tuple[int, int]] = field(default_factory=list)
-    current_activity: str = ""
-    schedule: list = field(default_factory=list)
 
 
 class SimulationEngine:
@@ -86,9 +60,9 @@ class SimulationEngine:
 
     def __init__(
         self,
-        maze: Maze,
-        agents: list[AgentConfig],
-        simulation_id: str,
+        maze: Maze | None = None,
+        agents: list[AgentConfig] | None = None,
+        simulation_id: str = "",
         broadcast_callback: Callable | None = None,
     ) -> None:
         """Initialize the simulation engine (not yet running).
@@ -106,14 +80,14 @@ class SimulationEngine:
         """
         self.maze = maze
         self.simulation_id = simulation_id
-        self._configs: list[AgentConfig] = agents
+        self._configs: list[AgentConfig] = agents or []
 
         # D-07: Pause gate. Cleared = paused (blocked), Set = running.
         # Starts cleared so the loop blocks until run() or resume() is called.
         self._running: asyncio.Event = asyncio.Event()
 
-        # Runtime state dict: agent_name -> AgentState
-        self._agent_states: dict[str, AgentState] = {}
+        # Runtime state dict: agent_name -> Agent (ARCH-03: single dict, no dual ownership)
+        self._agents: dict[str, Agent] = {}
 
         # WR-03: Wired via constructor parameter so callers never need to write
         # the private attribute directly.  If None, emit methods are no-ops.
@@ -126,16 +100,16 @@ class SimulationEngine:
 
         Must be called before run(). Performs:
         1. Resets the simulation's ChromaDB collection for a fresh start (INF-01)
-        2. Creates AgentState for each config
+        2. Creates Agent for each config
         3. Generates daily schedules for all agents in parallel (2 LLM calls/agent)
         4. Stores initial observation memories for each agent
         """
         # INF-01: Clear stale ChromaDB data from previous simulation runs
         await reset_simulation(self.simulation_id)
 
-        # Create base AgentState for each agent config (no LLM calls yet)
+        # Create base Agent for each agent config (no LLM calls yet)
         for cfg in self._configs:
-            self._agent_states[cfg.name] = AgentState(
+            self._agents[cfg.name] = Agent(
                 name=cfg.name,
                 config=cfg,
                 coord=cfg.coord,
@@ -158,7 +132,7 @@ class SimulationEngine:
                 agent_name=cfg.name,
                 agent_scratch=cfg.scratch,
             )
-            self._agent_states[cfg.name].schedule = schedule
+            self._agents[cfg.name].schedule = schedule
 
             # Store initial observation memory for context on first tick
             await add_memory(
@@ -195,11 +169,11 @@ class SimulationEngine:
         """
         while True:
             await self._running.wait()
-            for name, state in self._agent_states.items():
-                if state.path:
-                    next_tile = state.path.pop(0)
-                    state.coord = next_tile
-                    await self._emit_agent_update(name, state)
+            for name, agent in self._agents.items():
+                if agent.path:
+                    next_tile = agent.path.pop(0)
+                    agent.coord = next_tile
+                    await self._emit_agent_update(name, agent)
             await asyncio.sleep(0.5)
 
     async def _tick_loop(self) -> None:
@@ -220,8 +194,8 @@ class SimulationEngine:
 
             try:
                 async with asyncio.TaskGroup() as tg:
-                    for name, state in self._agent_states.items():
-                        tg.create_task(self._agent_step_safe(name, state))
+                    for name, agent in self._agents.items():
+                        tg.create_task(self._agent_step_safe(name, agent))
             except* Exception as eg:
                 # T-04-01: Log ExceptionGroup details but never crash the loop.
                 # _agent_step_safe() absorbs individual agent failures, but we
@@ -234,7 +208,7 @@ class SimulationEngine:
             self._tick_count += 1
             await asyncio.sleep(TICK_INTERVAL)
 
-    async def _agent_step_safe(self, agent_name: str, state: AgentState) -> None:
+    async def _agent_step_safe(self, agent_name: str, agent: Agent) -> None:
         """Per-agent step with full exception isolation (T-04-01).
 
         Wraps _agent_step() in try/except so any failure is absorbed.
@@ -242,12 +216,12 @@ class SimulationEngine:
         calls are taking too long (Pitfall 5 mitigation).
 
         Args:
-            agent_name: Agent's name (key into self._agent_states).
-            state:      The agent's current AgentState.
+            agent_name: Agent's name (key into self._agents).
+            agent:      The agent object.
         """
         try:
             await asyncio.wait_for(
-                self._agent_step(agent_name, state),
+                self._agent_step(agent_name, agent),
                 timeout=TICK_INTERVAL * 2,
             )
         except asyncio.TimeoutError:
@@ -260,7 +234,7 @@ class SimulationEngine:
             # T-04-01: Critical — absorb ALL exceptions so sibling agents are never cancelled
             logger.warning("Agent %s step failed: %s", agent_name, exc)
 
-    async def _agent_step(self, agent_name: str, state: AgentState) -> None:
+    async def _agent_step(self, agent_name: str, agent: Agent) -> None:
         """Single agent tick: perceive -> move OR converse OR decide.
 
         Three-phase flow (one phase per tick):
@@ -271,19 +245,19 @@ class SimulationEngine:
 
         Args:
             agent_name: Agent's display name.
-            state:      The agent's current AgentState (mutated in place).
+            agent:      The agent object (mutated in place).
         """
-        config = state.config
+        config = agent.config
 
         # Build snapshot of all agents' positions and activities for perception scan
         all_agents_view = {
-            name: {"coord": s.coord, "current_activity": s.current_activity}
-            for name, s in self._agent_states.items()
+            name: {"coord": a.coord, "current_activity": a.current_activity}
+            for name, a in self._agents.items()
         }
 
         # 1. PERCEIVE (pure Python, no LLM — fast)
         perception = perceive(
-            agent_coord=state.coord,
+            agent_coord=agent.coord,
             agent_name=agent_name,
             maze=self.maze,
             all_agents=all_agents_view,
@@ -291,78 +265,38 @@ class SimulationEngine:
 
         # 2. MOVEMENT: handled by _movement_loop() (fast 500ms cycle)
         # If agent is still walking, skip LLM decisions this tick
-        if state.path:
+        if agent.path:
             return
 
         # 3. CONVERSATION PHASE: check nearby agents, attempt one conversation per tick
         if perception.nearby_agents:
             for nearby in perception.nearby_agents:
                 other_name = nearby["name"]
-                other_activity = nearby.get("activity", "")
-                other_state = self._agent_states.get(other_name)
-                if other_state is None:
+                other_agent = self._agents.get(other_name)
+                if other_agent is None:
                     # WR-02: Log data integrity issue — a perceived agent name is not
-                    # in _agent_states (stale perception or name mismatch).  Continue
+                    # in _agents (stale perception or name mismatch).  Continue
                     # to the next nearby agent rather than counting this as the one
                     # conversation-check attempt for this tick.
                     logger.warning(
-                        "Agent %s perceived unknown agent %s — name not in _agent_states, skipping",
+                        "Agent %s perceived unknown agent %s — name not in _agents, skipping",
                         agent_name,
                         other_name,
                     )
                     continue
 
-                should_talk = await attempt_conversation(
-                    simulation_id=self.simulation_id,
-                    agent_name=agent_name,
-                    agent_scratch=config.scratch,
-                    other_name=other_name,
-                    other_activity=other_activity,
-                    agent_current_activity=state.current_activity,
-                    location=perception.location,
-                )
+                result = await agent.converse(other_agent, self.maze, self.simulation_id)
+                if result:
+                    revised_a = result.get("revised_schedule_a", agent.schedule)
+                    revised_b = result.get("revised_schedule_b", other_agent.schedule)
+                    agent.schedule = list(revised_a)
+                    other_agent.schedule = list(revised_b)
 
-                if should_talk:
-                    # Snapshot both schedules before the await so we can detect
-                    # concurrent mutations that occurred while awaiting the LLM.
-                    # CR-01: because all agent steps run concurrently inside
-                    # asyncio.TaskGroup, agent B's step may mutate its own schedule
-                    # between the point we call run_conversation() and the point we
-                    # write back revised_b.  Compare against the pre-await snapshot
-                    # and only apply revised_b if agent B's schedule is unchanged.
-                    schedule_b_snapshot = list(other_state.schedule)
-
-                    convo_result = await run_conversation(
-                        simulation_id=self.simulation_id,
-                        agent_a_name=agent_name,
-                        agent_a_scratch=config.scratch,
-                        agent_b_name=other_name,
-                        agent_b_scratch=other_state.config.scratch,
-                        location=perception.location,
-                        remaining_schedule_a=list(state.schedule),
-                        remaining_schedule_b=schedule_b_snapshot,
-                    )
-
-                    # Update both agents' schedules with revised entries
-                    revised_a = convo_result.get("revised_schedule_a", [])
-                    revised_b = convo_result.get("revised_schedule_b", [])
-                    if revised_a:
-                        state.schedule = list(revised_a)
-                    # CR-01 guard: only apply revised_b if other agent's schedule
-                    # was not modified by a concurrent task during the await above.
-                    if revised_b and other_state.schedule == schedule_b_snapshot:
-                        other_state.schedule = list(revised_b)
-                    elif revised_b:
-                        logger.debug(
-                            "Skipped revised schedule write-back for %s: "
-                            "schedule was concurrently modified during conversation await",
-                            other_name,
-                        )
-
-                    await self._emit_conversation(convo_result)
+                    await self._emit_conversation(result)
                     return  # conversation tick: no decide call this tick
 
-                # Only attempt one conversation per tick per agent
+                # LOAD-BEARING BREAK (D-05): Only attempt one conversation gate check per tick.
+                # Removing this break multiplies LLM calls by the number of nearby agents.
                 break
 
         # 4. DECIDE PHASE (LLM — slow): choose next destination and activity
@@ -371,22 +305,22 @@ class SimulationEngine:
             agent_name=agent_name,
             agent_scratch=config.scratch,
             agent_spatial=config.spatial,
-            current_activity=state.current_activity,
+            current_activity=agent.current_activity,
             perception=perception,
-            current_schedule=state.schedule,
+            current_schedule=agent.schedule,
         )
 
         # Resolve destination to tile coordinates and compute BFS path (D-09, D-10)
         if action.destination != "idle":
             dest_coord = self.maze.resolve_destination(action.destination)
             if dest_coord is not None:
-                path = self.maze.find_path(state.coord, dest_coord)
+                path = self.maze.find_path(agent.coord, dest_coord)
                 # Skip first element (current position) so first pop moves to next tile
-                state.path = path[1:] if len(path) > 1 else []
+                agent.path = path[1:] if len(path) > 1 else []
 
         # Update activity and broadcast state change
-        state.current_activity = action.activity
-        await self._emit_agent_update(agent_name, state)
+        agent.current_activity = action.activity
+        await self._emit_agent_update(agent_name, agent)
 
         # Store action memory for future perception and decision context
         await add_memory(
@@ -399,7 +333,7 @@ class SimulationEngine:
             importance=3,
         )
 
-    async def _emit_agent_update(self, agent_name: str, state: AgentState) -> None:
+    async def _emit_agent_update(self, agent_name: str, agent: Agent) -> None:
         """Broadcast agent position and activity to all connected clients.
 
         Calls the broadcast callback (attached by Plan 02's ConnectionManager) if set.
@@ -407,14 +341,14 @@ class SimulationEngine:
 
         Args:
             agent_name: Agent's display name.
-            state:      Current AgentState (coord and current_activity are broadcast).
+            agent:      Current Agent (coord and current_activity are broadcast).
         """
         if self._broadcast_callback is not None:
             await self._broadcast_callback({
                 "type": "agent_update",
                 "name": agent_name,
-                "coord": list(state.coord),
-                "activity": state.current_activity,
+                "coord": list(agent.coord),
+                "activity": agent.current_activity,
             })
 
     async def _emit_conversation(self, conversation_result: dict) -> None:
@@ -447,14 +381,14 @@ class SimulationEngine:
                     validation (ws.py guards upstream). Truncated to 500 chars here.
             mode:   "broadcast" (all agents) or "whisper" (single named target).
             target: Agent name for whisper mode. Ignored for broadcast. Must be a
-                    key in self._agent_states; unknown names are logged and rejected.
+                    key in self._agents; unknown names are logged and rejected.
         """
         # T-06-03: Truncate to 500 chars to prevent oversized ChromaDB documents
         text = text[:500]
 
         if mode == "broadcast":
-            targets = list(self._agent_states.keys())
-        elif mode == "whisper" and target and target in self._agent_states:
+            targets = list(self._agents.keys())
+        elif mode == "whisper" and target and target in self._agents:
             targets = [target]
         else:
             logger.warning(
@@ -472,9 +406,9 @@ class SimulationEngine:
             )
             # Clear the agent's current path so they make a fresh LLM decision
             # on the next tick instead of continuing to walk to their old destination.
-            state = self._agent_states.get(agent_name)
-            if state:
-                state.path = []
+            agent_obj = self._agents.get(agent_name)
+            if agent_obj:
+                agent_obj.path = []
 
     def pause(self) -> None:
         """Pause the simulation — blocks the tick loop at the next Event.wait().
@@ -509,10 +443,10 @@ class SimulationEngine:
             "agents": [
                 {
                     "name": name,
-                    "coord": list(state.coord),
-                    "activity": state.current_activity,
+                    "coord": list(agent.coord),
+                    "activity": agent.current_activity,
                 }
-                for name, state in self._agent_states.items()
+                for name, agent in self._agents.items()
             ],
             "simulation_status": "running" if self._running.is_set() else "paused",
             "tick_count": self._tick_count,

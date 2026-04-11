@@ -130,7 +130,8 @@ def test_ws_message_inject_event_serializes():
 @pytest.mark.asyncio
 async def test_inject_event_broadcast_stores_all_agents():
     """engine.inject_event(mode='broadcast') calls add_memory for ALL agents in _agent_states."""
-    from backend.simulation.engine import SimulationEngine, AgentState
+    from backend.simulation.engine import SimulationEngine
+    from backend.agents.agent import Agent
 
     maze = _make_small_maze()
     configs = [
@@ -141,7 +142,7 @@ async def test_inject_event_broadcast_stores_all_agents():
     engine = SimulationEngine(maze=maze, agents=configs, simulation_id="test-inject-broadcast")
 
     for cfg in configs:
-        engine._agent_states[cfg.name] = AgentState(
+        engine._agents[cfg.name] = Agent(
             name=cfg.name,
             config=cfg,
             coord=cfg.coord,
@@ -175,7 +176,8 @@ async def test_inject_event_broadcast_stores_all_agents():
 @pytest.mark.asyncio
 async def test_inject_event_whisper_stores_only_target():
     """engine.inject_event(mode='whisper', target='Alice') stores memory ONLY for Alice."""
-    from backend.simulation.engine import SimulationEngine, AgentState
+    from backend.simulation.engine import SimulationEngine
+    from backend.agents.agent import Agent
 
     maze = _make_small_maze()
     configs = [
@@ -186,7 +188,7 @@ async def test_inject_event_whisper_stores_only_target():
     engine = SimulationEngine(maze=maze, agents=configs, simulation_id="test-inject-whisper")
 
     for cfg in configs:
-        engine._agent_states[cfg.name] = AgentState(
+        engine._agents[cfg.name] = Agent(
             name=cfg.name,
             config=cfg,
             coord=cfg.coord,
@@ -211,7 +213,8 @@ async def test_inject_event_whisper_stores_only_target():
 @pytest.mark.asyncio
 async def test_inject_event_invalid_target_stores_nothing():
     """engine.inject_event(mode='whisper', target='NonExistent') logs warning, stores nothing."""
-    from backend.simulation.engine import SimulationEngine, AgentState
+    from backend.simulation.engine import SimulationEngine
+    from backend.agents.agent import Agent
 
     maze = _make_small_maze()
     configs = [
@@ -221,7 +224,7 @@ async def test_inject_event_invalid_target_stores_nothing():
     engine = SimulationEngine(maze=maze, agents=configs, simulation_id="test-inject-invalid")
 
     for cfg in configs:
-        engine._agent_states[cfg.name] = AgentState(
+        engine._agents[cfg.name] = Agent(
             name=cfg.name,
             config=cfg,
             coord=cfg.coord,
@@ -241,14 +244,15 @@ async def test_inject_event_invalid_target_stores_nothing():
 @pytest.mark.asyncio
 async def test_inject_event_invalid_mode_stores_nothing():
     """engine.inject_event(mode='invalid') logs warning and stores nothing."""
-    from backend.simulation.engine import SimulationEngine, AgentState
+    from backend.simulation.engine import SimulationEngine
+    from backend.agents.agent import Agent
 
     maze = _make_small_maze()
     configs = [_make_agent_config("Alice", (5, 5))]
     engine = SimulationEngine(maze=maze, agents=configs, simulation_id="test-inject-mode")
 
     for cfg in configs:
-        engine._agent_states[cfg.name] = AgentState(
+        engine._agents[cfg.name] = Agent(
             name=cfg.name,
             config=cfg,
             coord=cfg.coord,
@@ -267,12 +271,13 @@ async def test_inject_event_invalid_mode_stores_nothing():
 @pytest.mark.asyncio
 async def test_inject_event_truncates_long_text():
     """engine.inject_event() truncates event text to 500 characters (T-06-03 DoS mitigation)."""
-    from backend.simulation.engine import SimulationEngine, AgentState
+    from backend.simulation.engine import SimulationEngine
+    from backend.agents.agent import Agent
 
     maze = _make_small_maze()
     cfg = _make_agent_config("Alice", (5, 5))
     engine = SimulationEngine(maze=maze, agents=[cfg], simulation_id="test-inject-truncate")
-    engine._agent_states["Alice"] = AgentState(
+    engine._agents["Alice"] = Agent(
         name="Alice",
         config=cfg,
         coord=cfg.coord,
@@ -299,12 +304,13 @@ async def test_inject_event_truncates_long_text():
 @pytest.mark.asyncio
 async def test_inject_event_broadcast_uses_simulation_id():
     """engine.inject_event() passes self.simulation_id to add_memory."""
-    from backend.simulation.engine import SimulationEngine, AgentState
+    from backend.simulation.engine import SimulationEngine
+    from backend.agents.agent import Agent
 
     maze = _make_small_maze()
     cfg = _make_agent_config("Alice", (5, 5))
     engine = SimulationEngine(maze=maze, agents=[cfg], simulation_id="my-sim-42")
-    engine._agent_states["Alice"] = AgentState(
+    engine._agents["Alice"] = Agent(
         name="Alice",
         config=cfg,
         coord=cfg.coord,
