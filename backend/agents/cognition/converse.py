@@ -5,11 +5,16 @@ conversations — the key mechanism for event propagation and gossip in Phase 6)
 
 Architecture decisions implemented here:
   - D-11: Conversation trigger: proximity check + LLM decision (attempt_conversation).
-  - D-12: Conversations run 2-4 turns with hard cap MAX_TURNS=4. NEVER uses `while True`.
+  - D-12: Conversations run 2-6 turns with hard cap MAX_TURNS=6. NEVER uses `while True`.
     Uses `for turn in range(MAX_TURNS)` to bound LLM call count (T-03-09 mitigation).
+    Raised from 4 to 6 in Plan 09-02 to allow more natural exchange before hard cap.
+  - D-10: Repetition detection — _is_repetition() compares last utterances from each
+    speaker using difflib.SequenceMatcher (ratio > 0.6 = stagnated). Checked after turn
+    >= 1 to avoid premature termination of opening exchanges (Plan 09-02).
   - D-13: After conversation ends, each agent gets an LLM call to revise their
     remaining daily schedule based on what was discussed.
-  - T-03-09 (DoS): Hard cap MAX_TURNS=4 + COOLDOWN_SECONDS=60 prevents conversation spam.
+  - T-03-09 (DoS): Hard cap MAX_TURNS=6 + COOLDOWN_SECONDS=60 prevents conversation spam.
+    Repetition detection adds a second termination path strictly earlier than MAX_TURNS.
   - T-03-11 (Tampering): ScheduleRevision entries validated by Pydantic Field constraints
     (start_minute 0-1439, duration 15-120); invalid LLM entries are rejected.
   - T-03-12 (DoS): Limited to 2 memories stored per conversation (one per agent);
@@ -18,6 +23,7 @@ Architecture decisions implemented here:
 Reference: GenerativeAgentsCN generative_agents/modules/converse.py
            GenerativeAgentsCN generative_agents/modules/agent.py (_chat_with ~line 501-568)
 """
+import difflib
 import time
 import logging
 
@@ -37,9 +43,11 @@ from backend.prompts.schedule_revise import schedule_revise_prompt
 
 logger = logging.getLogger(__name__)
 
-# D-12: Hard cap at 4 turns per conversation (T-03-09 DoS mitigation).
+# D-12: Hard cap at 6 turns per conversation (T-03-09 DoS mitigation).
+# Raised from 4 to 6 in Plan 09-02 to allow more natural exchange before hard cap.
 # Combined with COOLDOWN_SECONDS, this bounds LLM calls per agent pair per minute.
-MAX_TURNS = 4
+# Repetition detection (_is_repetition) provides a second, earlier termination path.
+MAX_TURNS = 6
 
 # Claude's discretion: 60 real-time seconds between same-pair conversations.
 # Prevents conversation spam in the simulation loop while keeping agents social.
@@ -94,6 +102,28 @@ def _record_conversation(agent_a: str, agent_b: str) -> None:
         agent_b: Second agent's name.
     """
     _conversation_cooldowns[_pair_key(agent_a, agent_b)] = time.time()
+
+
+def _is_repetition(text_a: str, text_b: str, threshold: float = 0.6) -> bool:
+    """Return True if texts are too similar (conversation stagnated).
+
+    Per D-10: uses difflib.SequenceMatcher to compare last utterances from each
+    speaker. Case-insensitive to avoid false negatives from capitalization.
+
+    Only called after turn >= 1 (skips the opening exchange) to prevent
+    premature termination — agents often start with greetings that may be similar.
+
+    Args:
+        text_a:    Last utterance from speaker A.
+        text_b:    Last utterance from speaker B.
+        threshold: Similarity ratio above which texts are considered repetitive.
+                   Default 0.6 — texts sharing >60% character sequence structure
+                   are flagged as stagnated conversation.
+
+    Returns:
+        True if ratio > threshold (conversation is stagnating), False otherwise.
+    """
+    return difflib.SequenceMatcher(None, text_a.lower(), text_b.lower()).ratio() > threshold
 
 
 async def attempt_conversation(
@@ -204,6 +234,7 @@ async def run_conversation(
     """
     conversation_log: list[dict] = []
     ended_early = False
+    terminated_by_repetition = False
 
     # --- Turn loop: range(MAX_TURNS) ensures hard cap at MAX_TURNS rounds ---
     # Each round has 2 speakers (A then B). Total utterances <= 2 * MAX_TURNS.
@@ -249,6 +280,22 @@ async def run_conversation(
         if turn_b.end_conversation and turn >= 1:
             ended_early = True
             break
+
+        # D-10: Repetition detection — compare last utterances from A and B.
+        # Only check after turn >= 1 (skip opening exchange — greetings may be similar
+        # without indicating stagnation; Pitfall 4 avoidance per Plan 09-02).
+        if turn >= 1:
+            last_a_texts = [t["text"] for t in conversation_log if t["speaker"] == agent_a_name]
+            last_b_texts = [t["text"] for t in conversation_log if t["speaker"] == agent_b_name]
+            if last_a_texts and last_b_texts:
+                if _is_repetition(last_a_texts[-1], last_b_texts[-1]):
+                    logger.info(
+                        "conversation ended (repetition): %s <-> %s (ratio > 0.6)",
+                        agent_a_name, agent_b_name,
+                    )
+                    ended_early = True
+                    terminated_by_repetition = True
+                    break
 
     # --- Record cooldown to prevent same-pair conversation spam ---
     _record_conversation(agent_a_name, agent_b_name)
@@ -335,9 +382,16 @@ async def run_conversation(
         fallback=ScheduleRevision(revised_entries=remaining_schedule_b, reason="LLM unavailable"),
     )
 
+    # Determine why the conversation ended (D-10, Plan 09-02)
+    terminated_reason = (
+        "repetition" if terminated_by_repetition
+        else ("agent_choice" if ended_early else "max_turns")
+    )
+
     return {
         "turns": conversation_log,
         "revised_schedule_a": revision_a.revised_entries,
         "revised_schedule_b": revision_b.revised_entries,
         "summary": summary_text,
+        "terminated_reason": terminated_reason,
     }
