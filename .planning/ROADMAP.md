@@ -188,8 +188,8 @@ Plans:
 **UI hint**: yes
 
 Plans:
-- [ ] 08-01-PLAN.md — Frontend visual clarity: wall stroke outlines on sector zones, agent label background pills, font size increases (VIS-01, VIS-02, BLD-02)
-- [ ] 08-02-PLAN.md — Backend operating hours: sim time tracking, Building.is_open(), decide_action open-locations filter, agent ejection on building close (BLD-03)
+- [x] 08-01-PLAN.md — Frontend visual clarity: wall stroke outlines on sector zones, agent label background pills, font size increases (VIS-01, VIS-02, BLD-02)
+- [x] 08-02-PLAN.md — Backend operating hours: sim time tracking, Building.is_open(), decide_action open-locations filter, agent ejection on building close (BLD-03)
 - [ ] 08-03-PLAN.md — Integration verification checkpoint: full test suite, human visual and behavioral approval
 ---
 
