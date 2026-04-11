@@ -184,9 +184,13 @@ Plans:
   2. An agent navigating toward a wall tile is deflected by BFS — the pathfinder treats wall tiles as obstacles and the agent arrives at the nearest walkable alternative.
   3. Agent name labels and activity text display at 18-22px on a standard 1920x1080 monitor at the default zoom level without overlapping sprites.
   4. When a building is closed, the agent's LLM decide call receives "X is closed" in its context and re-selects from open destinations — the agent is never routed to a closed building.
-**Plans**: TBD
+**Plans**: 3 plans
 **UI hint**: yes
 
+Plans:
+- [ ] 08-01-PLAN.md — Frontend visual clarity: wall stroke outlines on sector zones, agent label background pills, font size increases (VIS-01, VIS-02, BLD-02)
+- [ ] 08-02-PLAN.md — Backend operating hours: sim time tracking, Building.is_open(), decide_action open-locations filter, agent ejection on building close (BLD-03)
+- [ ] 08-03-PLAN.md — Integration verification checkpoint: full test suite, human visual and behavioral approval
 ---
 
 ### Phase 9: LLM Optimization
@@ -306,7 +310,7 @@ Plans:
 | 5. Frontend | v1.0 | 4/4 | Complete | 2026-04-10 |
 | 6. Event Injection | v1.0 | 2/2 | Complete | 2026-04-10 |
 | 7. OOP Foundation | v1.1 | 0/2 | Not started | - |
-| 8. Visual & Building Behavior | v1.1 | 0/? | Not started | - |
+| 8. Visual & Building Behavior | v1.1 | 0/3 | Not started | - |
 | 9. LLM Optimization | v1.1 | 0/? | Not started | - |
 | 10. Task & Perception Systems | v1.1 | 0/? | Not started | - |
 | 11. Reflection System | v1.1 | 0/? | Not started | - |
