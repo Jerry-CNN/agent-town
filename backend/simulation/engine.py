@@ -201,22 +201,10 @@ class SimulationEngine:
             # D-07: Block here when paused. Resumes immediately when running.
             await self._running.wait()
 
-            try:
-                async with asyncio.TaskGroup() as tg:
-                    for name, agent in self._agents.items():
-                        tg.create_task(self._agent_step_safe(name, agent))
-            except* Exception as eg:
-                # T-04-01: Log ExceptionGroup details but never crash the loop.
-                # _agent_step_safe() absorbs individual agent failures, but we
-                # catch ExceptionGroup here as a belt-and-suspenders guard.
-                for exc in eg.exceptions:
-                    logger.warning(
-                        "Unhandled exception in tick loop agent task: %s", exc
-                    )
-
-            self._tick_count += 1
-
-            # Advance simulation time: 10 sim-minutes per tick (D-10)
+            # P1 fix: Advance simulation time BEFORE agent steps so that
+            # _is_location_open() uses the correct hour on boundary ticks.
+            # Previously, agents decided destinations using the old hour,
+            # then the clock advanced and ejected them immediately.
             self._sim_minute += 10
             if self._sim_minute >= 60:
                 self._sim_minute = 0
@@ -353,36 +341,39 @@ class SimulationEngine:
         )
 
         # Resolve destination to tile coordinates and compute BFS path (D-09, D-10)
-        path_set = False
+        destination_valid = False
         if action.destination != "idle":
             dest_coord = self.maze.resolve_destination(action.destination)
             if dest_coord is not None:
-                path = self.maze.find_path(agent.coord, dest_coord)
-                # Skip first element (current position) so first pop moves to next tile
-                if len(path) > 1:
-                    agent.path = path[1:]
-                    path_set = True
+                if dest_coord == agent.coord:
+                    # P1 fix: same-tile destination is valid (agent changes activity in place)
+                    destination_valid = True
+                else:
+                    path = self.maze.find_path(agent.coord, dest_coord)
+                    if len(path) > 1:
+                        agent.path = path[1:]
+                        destination_valid = True
 
-        # Only update activity if destination was reachable, or agent chose "idle"
-        if path_set or action.destination == "idle":
+        # Only update activity if destination was reachable or same-tile, or agent chose "idle"
+        if destination_valid or action.destination == "idle":
             agent.current_activity = action.activity
+            await self._emit_agent_update(agent_name, agent)
+
+            # Store action memory only when the action will actually happen
+            await add_memory(
+                simulation_id=self.simulation_id,
+                agent_id=agent_name,
+                content=(
+                    f"{agent_name} is {action.activity} at {perception.location}"
+                ),
+                memory_type="action",
+                importance=3,
+            )
         else:
             logger.debug(
-                "Agent %s destination '%s' unreachable — keeping current activity",
+                "Agent %s destination '%s' unreachable — keeping current activity, no memory stored",
                 agent_name, action.destination,
             )
-        await self._emit_agent_update(agent_name, agent)
-
-        # Store action memory for future perception and decision context
-        await add_memory(
-            simulation_id=self.simulation_id,
-            agent_id=agent_name,
-            content=(
-                f"{agent_name} is {action.activity} at {perception.location}"
-            ),
-            memory_type="action",
-            importance=3,
-        )
 
     def _is_location_open(self, sector: str) -> bool:
         """Return True if sector has no Building entry or is currently open.
