@@ -542,6 +542,9 @@ class SimulationEngine:
                     "name": name,
                     "coord": list(agent.coord),
                     "activity": agent.current_activity,
+                    "occupation": agent.config.scratch.occupation if hasattr(agent.config.scratch, "occupation") else "",
+                    "age": agent.config.scratch.age if hasattr(agent.config.scratch, "age") else None,
+                    "innate": agent.config.scratch.innate if hasattr(agent.config.scratch, "innate") else "",
                 }
                 for name, agent in self._agents.items()
             ],
