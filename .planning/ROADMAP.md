@@ -1,7 +1,7 @@
 # Roadmap: Agent Town
 
 **Created:** 2026-04-08
-**Updated:** 2026-04-11 (Phase 9.1 plans created)
+**Updated:** 2026-04-11 (Phase 9 plans created)
 **Granularity:** Standard
 
 ---
@@ -144,8 +144,6 @@ Plans:
 - [ ] **Phase 7: OOP Foundation** - Agent/Building/Event classes replace scattered dicts; schemas.py split into domain-grouped modules
 - [ ] **Phase 8: Visual & Building Behavior** - Building walls visible on map with collision; agent text readable at default zoom; buildings respect operating hours
 - [ ] **Phase 9: LLM Optimization** - 2-level destination resolution, adaptive tick interval, conversation repetition detection, semaphore concurrency control, OpenRouter default
-- [ ] **Phase 9.1: Backend Runtime Wiring** - Wire Event lifecycle + Agent wrappers into runtime engine (gap closure)
-- [ ] **Phase 9.2: Visual Text Restoration** - Restore activity text on agent sprites, fix label contrast (gap closure)
 
 ### Planned: v1.2 Agent Behavior (after v1.1)
 
@@ -208,40 +206,9 @@ Plans:
 **UI hint**: no
 
 Plans:
-- [x] 09-01-PLAN.md — Semaphore concurrency control in gateway.py, latency tracking, adaptive tick interval in engine.py, Agent gating fields (LLM-04, LLM-02)
-- [x] 09-02-PLAN.md — 2-level decision cascade (sector -> arena) with per-sector gating in decide.py, conversation repetition detection in converse.py (LLM-01, LLM-03)
-- [x] 09-03-PLAN.md — Engine gating/repetition wiring, OpenRouter/Kimi K2.5 defaults, settings button, tick interval UI display, human verification
-
----
-
-### Phase 9.1: Backend Runtime Wiring
-**Goal**: The Event lifecycle state machine (created/active/spreading/expired) is exercised in production code — inject_event() creates Event objects, agents populate heard_by on perception, is_expired() enforces tick-based cleanup; the engine routes perceive() and decide_action() through Agent wrapper methods instead of calling raw functions directly.
-**Depends on**: Phase 9
-**Requirements**: EVTS-01, EVTS-02, EVTS-03, ARCH-02
-**Gap Closure**: Closes gaps from v1.1 milestone audit
-**Success Criteria** (what must be TRUE):
-  1. `engine.inject_event()` creates an `Event` object with status `active` and stores it; the raw `add_memory()` call is wrapped by Event lifecycle logic.
-  2. When an agent perceives an event, `Event.heard_by` is updated with the agent's name and the current tick.
-  3. Events older than `EVENT_EXPIRY_TICKS` return `True` from `is_expired()` and are excluded from active event lists.
-  4. `engine._agent_step()` calls `agent.perceive()` and `agent.decide()` instead of importing and calling `perceive()` and `decide_action()` directly.
-**Plans**: 1 plan
-**UI hint**: no
-
-Plans:
-- [ ] 09.1-01-PLAN.md — Event lifecycle wiring (inject_event, tick advancement, expiry cleanup), Agent wrapper routing (perceive/decide), heard_by population, test scaffold + existing test mock fixes
-
----
-
-### Phase 9.2: Visual Text Restoration
-**Goal**: Agent sprites display both name and current activity text at the default zoom level; name labels have sufficient contrast on all sector background colors.
-**Depends on**: Phase 9.1
-**Requirements**: VIS-02
-**Gap Closure**: Closes gaps from v1.1 milestone audit
-**Success Criteria** (what must be TRUE):
-  1. Each agent sprite displays activity text below or beside the name label, visible without clicking the agent.
-  2. Name label background has sufficient contrast (WCAG AA ratio >= 4.5:1) against all sector background colors used in the map.
-**Plans**: TBD
-**UI hint**: yes
+- [ ] 09-01-PLAN.md — Semaphore concurrency control in gateway.py, latency tracking, adaptive tick interval in engine.py, Agent gating fields (LLM-04, LLM-02)
+- [ ] 09-02-PLAN.md — 2-level decision cascade (sector -> arena) with per-sector gating in decide.py, conversation repetition detection in converse.py (LLM-01, LLM-03)
+- [ ] 09-03-PLAN.md — Engine gating/repetition wiring, OpenRouter/Kimi K2.5 defaults, settings button, tick interval UI display, human verification
 
 ---
 
@@ -295,8 +262,6 @@ Plans:
 | 7 | OOP Foundation | Agent/Building/Event classes; SimulationEngine on Agent objects; schemas split; WS backward compat | ARCH-01, ARCH-02, ARCH-03, BLD-01, EVTS-01, EVTS-02, EVTS-03 | 6 |
 | 8 | Visual & Building Behavior | Wall outlines, walkable collision, readable text, operating hours gating | BLD-02, BLD-03, VIS-01, VIS-02 | 4 |
 | 9 | LLM Optimization | 2-level resolution, adaptive tick, conversation termination, semaphore, OpenRouter default | LLM-01, LLM-02, LLM-03, LLM-04 | 4 |
-| 9.1 | Backend Runtime Wiring | Wire Event lifecycle + Agent wrappers into runtime engine | EVTS-01, EVTS-02, EVTS-03, ARCH-02 | 4 |
-| 9.2 | Visual Text Restoration | Restore activity text, fix label contrast | VIS-02 | 2 |
 
 ### v1.2 Agent Behavior (planned)
 
@@ -325,11 +290,6 @@ Plans:
 | LLM-02 | Phase 9 |
 | LLM-03 | Phase 9 |
 | LLM-04 | Phase 9 |
-| EVTS-01 | Phase 9.1 |
-| EVTS-02 | Phase 9.1 |
-| EVTS-03 | Phase 9.1 |
-| ARCH-02 | Phase 9.1 |
-| VIS-02 | Phase 9.2 |
 | TSK-01 | Phase 10 |
 | TSK-02 | Phase 10 |
 | TSK-03 | Phase 10 |
@@ -357,8 +317,6 @@ Plans:
 | 7. OOP Foundation | v1.1 | 0/2 | Not started | - |
 | 8. Visual & Building Behavior | v1.1 | 0/3 | Not started | - |
 | 9. LLM Optimization | v1.1 | 0/3 | Not started | - |
-| 9.1 Backend Runtime Wiring | v1.1 | 0/1 | Not started | - |
-| 9.2 Visual Text Restoration | v1.1 | 0/? | Not started | - |
-| 10. Task & Perception Systems | v1.2 | 0/? | Not started | - |
+| 10. Task & Perception Systems | v1.1 | 0/? | Not started | - |
 | 11. Reflection System | v1.1 | 0/? | Not started | - |
 | 12. Relationship Tracking | v1.1 | 0/? | Not started | - |
