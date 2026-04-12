@@ -268,17 +268,18 @@ class SimulationEngine:
             agent_name: Agent's name (key into self._agents).
             agent:      The agent object.
         """
+        # Codex P1-3 fix: 120s cold-start floor — at cold start tick_interval=10,
+        # so tick_interval*2=20s which is not enough for 4+ LLM calls. The floor
+        # ensures the agent step never times out before any latency is recorded.
+        # WR-01: compute timeout once so the except block logs the actual value.
+        timeout = max(self.tick_interval * 2, 120)
         try:
-            # Codex P1-3 fix: 120s cold-start floor — at cold start tick_interval=10,
-            # so tick_interval*2=20s which is not enough for 4+ LLM calls. The floor
-            # ensures the agent step never times out before any latency is recorded.
-            timeout = max(self.tick_interval * 2, 120)
             await asyncio.wait_for(
                 self._agent_step(agent_name, agent),
                 timeout=timeout,
             )
         except asyncio.TimeoutError:
-            timeout = max(self.tick_interval * 2, 120)
+            # Reuse the same timeout variable — do NOT recompute self.tick_interval here
             logger.warning(
                 "Agent %s step timed out after %.0fs — skipping tick",
                 agent_name,
