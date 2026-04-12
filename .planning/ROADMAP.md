@@ -144,7 +144,7 @@ Plans:
 - [ ] **Phase 7: OOP Foundation** - Agent/Building/Event classes replace scattered dicts; schemas.py split into domain-grouped modules
 - [ ] **Phase 8: Visual & Building Behavior** - Building walls visible on map with collision; agent text readable at default zoom; buildings respect operating hours
 - [ ] **Phase 9: LLM Optimization** - 2-level destination resolution, adaptive tick interval, conversation repetition detection, semaphore concurrency control, OpenRouter default
-- [ ] **Phase 9.1: Backend Runtime Wiring** - Wire Event lifecycle + Agent wrappers into runtime engine (gap closure)
+- [x] **Phase 9.1: Backend Runtime Wiring** - Wire Event lifecycle + Agent wrappers into runtime engine (gap closure) (completed 2026-04-12)
 - [ ] **Phase 9.2: Visual Text Restoration** - Restore activity text on agent sprites, fix label contrast (gap closure)
 
 ### Planned: v1.2 Agent Behavior (after v1.1)
@@ -228,7 +228,7 @@ Plans:
 **UI hint**: no
 
 Plans:
-- [ ] 09.1-01-PLAN.md — Event lifecycle wiring (inject_event, tick advancement, expiry cleanup), Agent wrapper routing (perceive/decide), heard_by population, test scaffold + existing test mock fixes
+- [x] 09.1-01-PLAN.md — Event lifecycle wiring (inject_event, tick advancement, expiry cleanup), Agent wrapper routing (perceive/decide), heard_by population, test scaffold + existing test mock fixes
 
 ---
 
@@ -295,7 +295,7 @@ Plans:
 | 7 | OOP Foundation | Agent/Building/Event classes; SimulationEngine on Agent objects; schemas split; WS backward compat | ARCH-01, ARCH-02, ARCH-03, BLD-01, EVTS-01, EVTS-02, EVTS-03 | 6 |
 | 8 | Visual & Building Behavior | Wall outlines, walkable collision, readable text, operating hours gating | BLD-02, BLD-03, VIS-01, VIS-02 | 4 |
 | 9 | LLM Optimization | 2-level resolution, adaptive tick, conversation termination, semaphore, OpenRouter default | LLM-01, LLM-02, LLM-03, LLM-04 | 4 |
-| 9.1 | Backend Runtime Wiring | Wire Event lifecycle + Agent wrappers into runtime engine | EVTS-01, EVTS-02, EVTS-03, ARCH-02 | 4 |
+| 9.1 | Backend Runtime Wiring | 1/1 | Complete   | 2026-04-12 |
 | 9.2 | Visual Text Restoration | Restore activity text, fix label contrast | VIS-02 | 2 |
 
 ### v1.2 Agent Behavior (planned)

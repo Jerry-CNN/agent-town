@@ -202,16 +202,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | ARCH-01 | Phase 7 | Pending |
-| ARCH-02 | Phase 7 | Pending |
+| ARCH-02 | Phase 9.1 | Pending |
 | ARCH-03 | Phase 7 | Pending |
 | BLD-01 | Phase 7 | Pending |
-| EVTS-01 | Phase 7 | Pending |
-| EVTS-02 | Phase 7 | Pending |
-| EVTS-03 | Phase 7 | Pending |
+| EVTS-01 | Phase 9.1 | Pending |
+| EVTS-02 | Phase 9.1 | Pending |
+| EVTS-03 | Phase 9.1 | Pending |
 | BLD-02 | Phase 8 | Pending |
 | BLD-03 | Phase 8 | Pending |
 | VIS-01 | Phase 8 | Pending |
-| VIS-02 | Phase 8 | Pending |
+| VIS-02 | Phase 9.2 | Pending |
 | LLM-01 | Phase 9 | Pending |
 | LLM-02 | Phase 9 | Pending |
 | LLM-03 | Phase 9 | Pending |
