@@ -299,7 +299,7 @@ Plans:
 | 8 | Visual & Building Behavior | Wall outlines, walkable collision, readable text, operating hours gating | BLD-02, BLD-03, VIS-01, VIS-02 | 4 |
 | 9 | LLM Optimization | 2-level resolution, adaptive tick, conversation termination, semaphore, OpenRouter default | LLM-01, LLM-02, LLM-03, LLM-04 | 4 |
 | 9.1 | Backend Runtime Wiring | 1/1 | Complete    | 2026-04-12 |
-| 9.2 | Visual Text Restoration | 1/1 | Complete   | 2026-04-12 |
+| 9.2 | Visual Text Restoration | 1/1 | Complete    | 2026-04-12 |
 
 ### v1.2 Agent Behavior (planned)
 
