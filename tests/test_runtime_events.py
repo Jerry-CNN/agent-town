@@ -216,12 +216,10 @@ async def test_expired_events_removed_after_tick():
     # After increment: tick = EVENT_EXPIRY_TICKS, 10-0 >= 10 => True
     engine._tick_count = EVENT_EXPIRY_TICKS - 1
 
-    # Manually trigger the event advancement logic that runs in _tick_loop after increment
+    # Advance tick count and call the real engine purge helper (WR-04: don't replicate
+    # the loop inline — call the method that _tick_loop actually uses).
     engine._tick_count += 1
-    for eid, ev in list(engine._active_events.items()):
-        ev.tick(engine._tick_count)
-        if ev.is_expired(engine._tick_count):
-            del engine._active_events[eid]
+    engine._purge_expired_events()
 
     assert len(engine._active_events) == 0, (
         f"Expected 0 events after expiry, got {len(engine._active_events)}: {engine._active_events}"

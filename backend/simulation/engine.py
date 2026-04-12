@@ -239,11 +239,7 @@ class SimulationEngine:
             self._tick_count += 1
 
             # EVTS-03: Advance lifecycle and purge expired events
-            for eid, ev in list(self._active_events.items()):
-                ev.tick(self._tick_count)
-                if ev.is_expired(self._tick_count):
-                    del self._active_events[eid]
-                    logger.info("Event expired and removed: %s (tick %d)", ev.text[:40], self._tick_count)
+            self._purge_expired_events()
 
             current_tick = self.tick_interval
             logger.info("===== Tick %d complete | next in %.1fs =====", self._tick_count, current_tick)
@@ -256,6 +252,23 @@ class SimulationEngine:
                 })
 
             await asyncio.sleep(current_tick)
+
+    def _purge_expired_events(self) -> None:
+        """Advance event lifecycle and remove any expired events (EVTS-03).
+
+        Extracted from _tick_loop so tests can call the real purge logic
+        directly rather than replicating the loop inline (WR-04).
+        Called once per tick after self._tick_count has been incremented.
+        """
+        for eid, ev in list(self._active_events.items()):
+            ev.tick(self._tick_count)
+            if ev.is_expired(self._tick_count):
+                del self._active_events[eid]
+                logger.info(
+                    "Event expired and removed: %s (tick %d)",
+                    ev.text[:40],
+                    self._tick_count,
+                )
 
     async def _agent_step_safe(self, agent_name: str, agent: Agent) -> None:
         """Per-agent step with full exception isolation (T-04-01).
