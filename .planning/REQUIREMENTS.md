@@ -256,13 +256,30 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (To be mapped by roadmapper) | | |
+| PIPE-01 | Phase 10 | Pending |
+| PIPE-02 | Phase 10 | Pending |
+| PIPE-03 | Phase 10 | Pending |
+| TOWN-01 | Phase 11 | Pending |
+| TOWN-02 | Phase 11 | Pending |
+| TOWN-03 | Phase 11 | Pending |
+| TILE-01 | Phase 12 | Pending |
+| TILE-02 | Phase 12 | Pending |
+| TILE-03 | Phase 12 | Pending |
+| TILE-04 | Phase 12 | Pending |
+| SPRT-01 | Phase 13 | Pending |
+| SPRT-02 | Phase 13 | Pending |
+| SPRT-03 | Phase 13 | Pending |
+| SPRT-04 | Phase 13 | Pending |
+| SPRT-05 | Phase 13 | Pending |
+| UIPOL-01 | Phase 14 | Pending |
+| UIPOL-02 | Phase 14 | Pending |
+| UIPOL-03 | Phase 14 | Pending |
 
 **Coverage (v1.2):**
-- v1.2 requirements: 16 total
-- Mapped to phases: 0
-- Unmapped: 16
+- v1.2 requirements: 18 total (note: original count of 16 excluded TILE-04/UIPOL-03 loading screen split)
+- Mapped to phases: 18
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-08*
-*Last updated: 2026-04-11 after v1.2 Pixel Art UI milestone started*
+*Last updated: 2026-04-11 after v1.2 roadmap created*

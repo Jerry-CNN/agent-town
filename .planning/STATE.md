@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Pixel Art UI
-status: defining_requirements
+status: roadmap_ready
 last_updated: "2026-04-11T00:00:00.000Z"
 last_activity: 2026-04-11
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -19,14 +19,23 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-04-11)
 **Core value:** Users can type any event and immediately see AI agents respond to it in a living, breathing town
-**Current focus:** Defining requirements for v1.2 Pixel Art UI
+**Current focus:** v1.2 Pixel Art UI — roadmap defined, ready to plan Phase 10
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 10 (Asset Pipeline) — not started
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-11 — Milestone v1.2 started
+Status: Roadmap ready, awaiting phase planning
+Last activity: 2026-04-11 — v1.2 roadmap created (5 phases, 15 requirements mapped)
+
+[==========          ] 0% | Phase 0/5 | Plans 0/?
+
+## Performance Metrics
+
+- Phases shipped: 11 (Phases 1-9.2 across v1.0 and v1.1)
+- Plans shipped: 22
+- Requirements validated: 52 (v1.0: 26, v1.1: 15, shared infrastructure counted once)
+- Active requirements: 15 (v1.2)
 
 ## Accumulated Context
 
@@ -37,6 +46,12 @@ Last activity: 2026-04-11 — Milestone v1.2 started
 - The `break` on engine.py:366 is load-bearing — limits conversation gating to one LLM call per tick per agent; preserve during refactor
 - Reflection must use asyncio.create_task(), never await inline — 5-20x longer than decide_action
 - TICK_INTERVAL and AGENT_STEP_TIMEOUT must change together (timeout = TICK_INTERVAL * 2)
+- scaleMode: 'nearest' must be set BEFORE any Assets.load() — setting it after has no effect on already-loaded textures
+- Phaser sprite atlas format is incompatible with PixiJS — requires conversion before use
+- pixi-tiledmap renders ALL Tiled layers including metadata layers — hide non-visual layers in Tiled before export
+- 18 tilesets may exceed WebGL texture unit minimum of 8 — pixi-tiledmap handles this via CompositeTilemap; do not try to batch manually
+- GPT-4o-mini is the default OpenRouter model (1-2s response, reliable JSON output)
+- OpenRouter is the default provider — Ollama unreliable with 8+ agents
 
 ### Blockers
 
@@ -44,10 +59,10 @@ None
 
 ### Todos
 
-None
+- Plan Phase 10: Asset Pipeline (PIPE-01, PIPE-02, PIPE-03)
 
 ## Session History
 
 - 2026-04-08: Project initialized, v1.0 roadmap created (6 phases, 28 requirements mapped)
 - 2026-04-10: v1.0 shipped; v1.1 roadmap created (6 phases, 26 requirements mapped)
-- 2026-04-11: Milestone v1.2 Pixel Art UI started
+- 2026-04-11: Milestone v1.2 Pixel Art UI started; v1.2 roadmap created (5 phases, 15 requirements mapped)
