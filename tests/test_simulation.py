@@ -306,15 +306,12 @@ async def test_movement_one_tile_per_tick():
         schedule=[],
     )
 
-    with (
-        patch("backend.simulation.engine.perceive") as mock_perceive,
-        patch("backend.simulation.engine.decide_action", new_callable=AsyncMock),
-    ):
-        from backend.schemas import PerceptionResult
-        mock_perceive.return_value = PerceptionResult(
-            nearby_events=[], nearby_agents=[], location="agent-town:cafe"
-        )
+    from backend.schemas import PerceptionResult
+    mock_perception = PerceptionResult(
+        nearby_events=[], nearby_agents=[], location="agent-town:cafe"
+    )
 
+    with patch.object(engine._agents["Alice"], "perceive", return_value=mock_perception):
         # First tick — advance one tile
         await engine._agent_step("Alice", engine._agents["Alice"])
 
@@ -323,15 +320,7 @@ async def test_movement_one_tile_per_tick():
     assert engine._agents["Alice"].path == [(7, 5), (8, 5)], \
         f"Expected [(7,5),(8,5)], got {engine._agents['Alice'].path}"
 
-    with (
-        patch("backend.simulation.engine.perceive") as mock_perceive,
-        patch("backend.simulation.engine.decide_action", new_callable=AsyncMock),
-    ):
-        from backend.schemas import PerceptionResult
-        mock_perceive.return_value = PerceptionResult(
-            nearby_events=[], nearby_agents=[], location="agent-town:cafe"
-        )
-
+    with patch.object(engine._agents["Alice"], "perceive", return_value=mock_perception):
         # Second tick — advance another tile
         await engine._agent_step("Alice", engine._agents["Alice"])
 
@@ -358,18 +347,18 @@ async def test_movement_skips_decide_when_path_exists():
         schedule=[],
     )
 
-    with (
-        patch("backend.simulation.engine.perceive") as mock_perceive,
-        patch("backend.simulation.engine.decide_action", new_callable=AsyncMock) as mock_decide,
-    ):
-        from backend.schemas import PerceptionResult
-        mock_perceive.return_value = PerceptionResult(
-            nearby_events=[], nearby_agents=[], location="agent-town"
-        )
+    from backend.schemas import PerceptionResult
+    mock_perception = PerceptionResult(
+        nearby_events=[], nearby_agents=[], location="agent-town"
+    )
 
+    with (
+        patch.object(engine._agents["Alice"], "perceive", return_value=mock_perception),
+        patch.object(engine._agents["Alice"], "decide", new_callable=AsyncMock) as mock_decide,
+    ):
         await engine._agent_step("Alice", engine._agents["Alice"])
 
-        # decide_action should NOT be called during a movement tick
+        # decide should NOT be called during a movement tick
         mock_decide.assert_not_called()
 
 
@@ -399,16 +388,15 @@ async def test_decide_computes_new_path():
         reasoning="want coffee",
     )
 
+    mock_perception = PerceptionResult(
+        nearby_events=[], nearby_agents=[], location="agent-town"
+    )
+
     with (
-        patch("backend.simulation.engine.perceive") as mock_perceive,
-        patch("backend.simulation.engine.decide_action", new_callable=AsyncMock) as mock_decide,
+        patch.object(engine._agents["Alice"], "perceive", return_value=mock_perception),
+        patch.object(engine._agents["Alice"], "decide", new_callable=AsyncMock, return_value=mock_action),
         patch("backend.simulation.engine.add_memory", new_callable=AsyncMock),
     ):
-        mock_perceive.return_value = PerceptionResult(
-            nearby_events=[], nearby_agents=[], location="agent-town"
-        )
-        mock_decide.return_value = mock_action
-
         # Mock maze resolve and find_path
         maze.resolve_destination = MagicMock(return_value=(3, 3))
         maze.find_path = MagicMock(return_value=[(5, 5), (4, 5), (3, 5), (3, 4), (3, 3)])

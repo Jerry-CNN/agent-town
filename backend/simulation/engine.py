@@ -24,13 +24,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from typing import Callable
 
 from backend.schemas import AgentConfig, ScheduleEntry
+from backend.schemas.events import Event, EVENT_EXPIRY_TICKS
 from backend.simulation.world import Maze, load_buildings, Building
 from backend.agents.agent import Agent
-from backend.agents.cognition.perceive import perceive
-from backend.agents.cognition.decide import decide_action, _extract_known_locations
+from backend.agents.cognition.decide import _extract_known_locations
 from backend.agents.cognition.plan import generate_daily_schedule
 from backend.agents.memory.store import add_memory, reset_simulation
 from backend.gateway import get_adaptive_tick_interval
@@ -106,6 +107,9 @@ class SimulationEngine:
         # _record_conversation(), causing duplicate conversations and conflicting
         # schedule writes. This set tracks in-flight conversation pairs within a tick.
         self._active_conversations: set[frozenset[str]] = set()
+
+        # EVTS-01: Active event registry — events tracked from inject to expiry
+        self._active_events: dict[str, Event] = {}
 
     @property
     def tick_interval(self) -> float:
@@ -234,6 +238,13 @@ class SimulationEngine:
                     tg.create_task(self._agent_step_safe(name, agent))
             self._tick_count += 1
 
+            # EVTS-03: Advance lifecycle and purge expired events
+            for eid, ev in list(self._active_events.items()):
+                ev.tick(self._tick_count)
+                if ev.is_expired(self._tick_count):
+                    del self._active_events[eid]
+                    logger.info("Event expired and removed: %s (tick %d)", ev.text[:40], self._tick_count)
+
             current_tick = self.tick_interval
             logger.info("===== Tick %d complete | next in %.1fs =====", self._tick_count, current_tick)
 
@@ -298,19 +309,21 @@ class SimulationEngine:
             for name, a in self._agents.items()
         }
 
-        # 1. PERCEIVE (pure Python, no LLM — fast)
-        perception = perceive(
-            agent_coord=agent.coord,
-            agent_name=agent_name,
-            maze=self.maze,
-            all_agents=all_agents_view,
-        )
+        # 1. PERCEIVE via Agent wrapper (ARCH-02)
+        perception = agent.perceive(maze=self.maze, all_agents=all_agents_view)
 
         nearby_names = [a["name"] for a in perception.nearby_agents] if perception.nearby_agents else []
         logger.info(
             "[%s] tick %d | perceive: pos=%s activity='%s' nearby=%s",
             agent_name, self._tick_count, agent.coord, agent.current_activity, nearby_names,
         )
+
+        # EVTS-02: Update heard_by for whisper events (D-09: broadcasts skip heard_by)
+        for ev in self._active_events.values():
+            if ev.mode == "whisper" and not ev.is_expired(self._tick_count):
+                if agent_name not in ev.heard_by:
+                    ev.heard_by.append(agent_name)
+                    logger.debug("[%s] heard whisper event '%s...'", agent_name, ev.text[:30])
 
         # 2. MOVEMENT: handled by _movement_loop() (fast 500ms cycle)
         # If agent is still walking, skip LLM decisions this tick
@@ -406,14 +419,9 @@ class SimulationEngine:
         schedule_changed = (current_schedule_block != getattr(agent, '_last_schedule_block', None))
         agent._last_schedule_block = current_schedule_block  # type: ignore[attr-defined]
 
-        action = await decide_action(
+        action = await agent.decide(
             simulation_id=self.simulation_id,
-            agent_name=agent_name,
-            agent_scratch=config.scratch,
-            agent_spatial=config.spatial,
-            current_activity=agent.current_activity,
             perception=perception,
-            current_schedule=agent.schedule,
             open_locations=open_locs,
             last_sector=agent.last_sector,
             new_perceptions=bool(perception.nearby_agents or perception.nearby_events),
@@ -612,6 +620,19 @@ class SimulationEngine:
                 "inject_event: invalid mode=%s or unknown target=%s", mode, target
             )
             return
+
+        # EVTS-01: Create Event object with active status
+        event_id = str(uuid.uuid4())
+        event = Event(
+            text=text,
+            mode=mode,
+            target=target,
+            status="created",
+            created_tick=self._tick_count,
+            expires_after_ticks=EVENT_EXPIRY_TICKS,
+        )
+        event.tick(self._tick_count)  # transitions created -> active
+        self._active_events[event_id] = event
 
         for agent_name in targets:
             await add_memory(
