@@ -110,6 +110,7 @@ Requirements for v1.2 milestone: Pixel Art UI.
 - [ ] **TOWN-01**: User sees an Agent Town-specific map designed in Tiled with thematic buildings (stock exchange, wedding hall, cafe, park, homes, office, shop)
 - [ ] **TOWN-02**: Backend town.json is regenerated from the Tiled map export preserving sector/arena coordinate structure
 - [ ] **TOWN-03**: Agent collision detection uses the Tiled collision layer instead of hardcoded collision data
+- [ ] **TOWN-04**: Every agent home, workplace, and routine destination maps to a reachable walkable tile after Tiled map export — no agent spawns in walls or has unreachable schedule destinations
 
 ### UI Polish
 
@@ -122,6 +123,11 @@ Requirements for v1.2 milestone: Pixel Art UI.
 - [ ] **PIPE-01**: CuteRPG tilesets and agent sprite sheets are ported from reference repo into frontend assets
 - [ ] **PIPE-02**: Reference sprite atlas (Phaser format) is converted to PixiJS-compatible format
 - [ ] **PIPE-03**: PixiJS initializes with scaleMode nearest to preserve pixel-art crispness
+
+### Performance
+
+- [ ] **PERF-01**: Tile map with 17 layers and animated agent sprites renders at 30+ FPS with 10 agents on a standard laptop
+- [ ] **PERF-02**: Initial asset loading (tilesets + sprite sheets) completes within 5 seconds on a broadband connection
 
 ## v1.3 Requirements
 
@@ -262,6 +268,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TOWN-01 | Phase 11 | Pending |
 | TOWN-02 | Phase 11 | Pending |
 | TOWN-03 | Phase 11 | Pending |
+| TOWN-04 | Phase 11 | Pending |
 | TILE-01 | Phase 12 | Pending |
 | TILE-02 | Phase 12 | Pending |
 | TILE-03 | Phase 12 | Pending |
@@ -274,10 +281,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UIPOL-01 | Phase 14 | Pending |
 | UIPOL-02 | Phase 14 | Pending |
 | UIPOL-03 | Phase 14 | Pending |
+| PERF-01 | Phase 12 | Pending |
+| PERF-02 | Phase 12 | Pending |
 
 **Coverage (v1.2):**
-- v1.2 requirements: 18 total (note: original count of 16 excluded TILE-04/UIPOL-03 loading screen split)
-- Mapped to phases: 18
+- v1.2 requirements: 21 total
+- Mapped to phases: 21
 - Unmapped: 0
 
 ---

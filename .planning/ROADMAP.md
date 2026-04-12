@@ -86,11 +86,12 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 ### Phase 11: Town Map Design & Backend Sync
 **Goal**: Agent Town has a purpose-built Tiled map with all thematic buildings, and the backend town.json is regenerated from the Tiled export so sector/arena coordinates and collision data come from the map, not hardcoded data.
 **Depends on**: Phase 10
-**Requirements**: TOWN-01, TOWN-02, TOWN-03
+**Requirements**: TOWN-01, TOWN-02, TOWN-03, TOWN-04
 **Success Criteria** (what must be TRUE):
   1. The Tiled map contains all seven thematic buildings (stock exchange, wedding hall, cafe, park, homes, office, shop) with labeled layers distinguishing ground, walls, furniture, and collision.
   2. The backend `town.json` is regenerated from the Tiled export — sector names and arena coordinate boundaries match the map visually (an agent assigned to "Stock Exchange" navigates to the tile region where that building visually sits).
   3. Agent pathfinding uses the collision layer exported from Tiled rather than hardcoded obstacle data — blocking walls in Tiled halt agent movement; removing a wall in Tiled and re-exporting makes that tile walkable without any backend code change.
+  4. Every agent home, workplace, and routine destination maps to a reachable walkable tile — no agent spawns in walls or has unreachable schedule destinations after the map export.
 **Plans**: TBD
 
 ---
@@ -98,12 +99,14 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 ### Phase 12: Tile Map Rendering
 **Goal**: The browser renders the full Tiled map with proper layering — ground tiles, building interiors with furniture, and foreground objects that visually occlude agents standing behind them — with a loading screen shown while assets initialize.
 **Depends on**: Phase 11
-**Requirements**: TILE-01, TILE-02, TILE-03, TILE-04
+**Requirements**: TILE-01, TILE-02, TILE-03, TILE-04, PERF-01, PERF-02
 **Success Criteria** (what must be TRUE):
   1. The town map displays CuteRPG pixel-art tiles instead of colored rectangles — ground tiles, walls, and floor patterns are all visible.
   2. Building interiors are rendered with furniture and room layouts matching the Tiled design — tables, counters, and decor are visible inside buildings when the camera covers them.
   3. An agent standing behind a tree or under a roof is visually occluded by the foreground tile — the agent sprite renders below the foreground layer, not on top of it.
   4. A loading screen is displayed from app startup until all tile map assets have finished loading — the map does not flash with raw tile indices or blank tiles during load.
+  5. Tile map with 17 layers and animated agent sprites renders at 30+ FPS with 10 agents on a standard laptop.
+  6. Initial asset loading (tilesets + sprite sheets) completes within 5 seconds on a broadband connection.
 **Plans**: TBD
 **UI hint**: yes
 
@@ -144,8 +147,8 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 | # | Phase | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|-----------------|
 | 10 | Asset Pipeline | Port assets, convert atlas, configure scaleMode | PIPE-01, PIPE-02, PIPE-03 | 3 |
-| 11 | Town Map Design & Backend Sync | Tiled map authored, town.json regenerated, collision from Tiled | TOWN-01, TOWN-02, TOWN-03 | 3 |
-| 12 | Tile Map Rendering | pixi-tiledmap integration, depth ordering, loading screen | TILE-01, TILE-02, TILE-03, TILE-04 | 4 |
+| 11 | Town Map Design & Backend Sync | Tiled map authored, town.json regenerated, collision from Tiled, reachability validated | TOWN-01, TOWN-02, TOWN-03, TOWN-04 | 4 |
+| 12 | Tile Map Rendering | pixi-tiledmap integration, depth ordering, loading screen, performance targets | TILE-01, TILE-02, TILE-03, TILE-04, PERF-01, PERF-02 | 6 |
 | 13 | Animated Agent Sprites | Walk cycles, directional facing, idle, portrait, bubbles | SPRT-01, SPRT-02, SPRT-03, SPRT-04, SPRT-05 | 5 |
 | 14 | UI Polish | Color palette, pixel font, loading progress bar | UIPOL-01, UIPOL-02, UIPOL-03 | 3 |
 
