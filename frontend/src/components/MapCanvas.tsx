@@ -21,10 +21,8 @@ const BG_COLOR = 0xd0d0c8;
 /** Map world size in pixels (D-02: 100 tiles × 32px) */
 const MAP_SIZE_PX = 3200;
 
-/** Zoom limits */
-const MIN_SCALE = 0.15;
-const MAX_SCALE = 2.0;
-const ZOOM_FACTOR = 0.1;
+/** Fixed zoom scale — shows most of the map while keeping agents readable */
+const FIXED_SCALE = 0.45;
 
 export function MapCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -42,48 +40,18 @@ export function MapCanvas() {
   const agentIds = useMemo(() => Object.keys(agents), [agents]);
   const setSelectedAgent = useSimulationStore((s) => s.setSelectedAgent);
 
-  // Auto-fit on mount: scale the 3200x3200 map to fill the container
+  // Fixed zoom: center the map at FIXED_SCALE on mount and resize
   useEffect(() => {
-    function updateScale() {
+    function centerMap() {
       const el = containerRef.current;
       if (!el) return;
-      const w = el.clientWidth;
-      const h = el.clientHeight;
-      const s = Math.min(w / MAP_SIZE_PX, h / MAP_SIZE_PX);
-      setScale(s);
-      setOffsetX((w - MAP_SIZE_PX * s) / 2);
-      setOffsetY((h - MAP_SIZE_PX * s) / 2);
+      setScale(FIXED_SCALE);
+      setOffsetX((el.clientWidth - MAP_SIZE_PX * FIXED_SCALE) / 2);
+      setOffsetY((el.clientHeight - MAP_SIZE_PX * FIXED_SCALE) / 2);
     }
-    updateScale();
-    window.addEventListener("resize", updateScale);
-    return () => window.removeEventListener("resize", updateScale);
-  }, []);
-
-  // Mouse-wheel zoom (zoom toward cursor position)
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    function onWheel(e: WheelEvent) {
-      e.preventDefault();
-      const rect = el!.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
-
-      setScale((prev) => {
-        const direction = e.deltaY < 0 ? 1 : -1;
-        const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, prev * (1 + direction * ZOOM_FACTOR)));
-        const ratio = next / prev;
-
-        // Zoom toward cursor: adjust offset so the world point under the cursor stays fixed
-        setOffsetX((ox) => mouseX - ratio * (mouseX - ox));
-        setOffsetY((oy) => mouseY - ratio * (mouseY - oy));
-        return next;
-      });
-    }
-
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    centerMap();
+    window.addEventListener("resize", centerMap);
+    return () => window.removeEventListener("resize", centerMap);
   }, []);
 
   // Click-drag pan

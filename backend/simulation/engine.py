@@ -235,7 +235,7 @@ class SimulationEngine:
             self._tick_count += 1
 
             current_tick = self.tick_interval
-            logger.debug("Tick %d complete, sleeping %.1fs (adaptive)", self._tick_count, current_tick)
+            logger.info("===== Tick %d complete | next in %.1fs =====", self._tick_count, current_tick)
 
             # Broadcast tick interval update to frontend (D-06)
             if self._broadcast_callback is not None:
@@ -306,10 +306,25 @@ class SimulationEngine:
             all_agents=all_agents_view,
         )
 
+        nearby_names = [a["name"] for a in perception.nearby_agents] if perception.nearby_agents else []
+        logger.info(
+            "[%s] tick %d | perceive: pos=%s activity='%s' nearby=%s",
+            agent_name, self._tick_count, agent.coord, agent.current_activity, nearby_names,
+        )
+
         # 2. MOVEMENT: handled by _movement_loop() (fast 500ms cycle)
         # If agent is still walking, skip LLM decisions this tick
         if agent.path:
+            logger.info("[%s] tick %d | walking (%d tiles left)", agent_name, self._tick_count, len(agent.path))
             return
+
+        # Agent has no path — they've arrived at their destination.
+        # Clear last_sector so gating won't skip their next decide call.
+        # Gating only saves LLM calls while the agent is en route (path non-empty),
+        # which is handled by the early return above.
+        if agent.last_sector is not None:
+            logger.info("[%s] tick %d | arrived at sector '%s', clearing gate", agent_name, self._tick_count, agent.last_sector)
+            agent.last_sector = None
 
         # 3. CONVERSATION PHASE: check nearby agents, attempt one conversation per tick
         if perception.nearby_agents:
@@ -346,11 +361,18 @@ class SimulationEngine:
                 # agent B's step may mutate its own schedule during the conversation.
                 schedule_b_snapshot = list(other_agent.schedule)
 
+                logger.info("[%s] tick %d | converse: attempting with %s", agent_name, self._tick_count, other_name)
                 result = await agent.converse(other_agent, self.maze, self.simulation_id)
                 # Clean up in-flight claim regardless of conversation outcome
                 self._active_conversations.discard(pair_key)
 
                 if result:
+                    turn_count = len(result.get("turns", []))
+                    term_reason = result.get("terminated_reason", "unknown")
+                    logger.info(
+                        "[%s] tick %d | converse: %s <-> %s completed (%d turns, ended=%s)",
+                        agent_name, self._tick_count, agent_name, other_name, turn_count, term_reason,
+                    )
                     revised_a = result.get("revised_schedule_a", [])
                     revised_b = result.get("revised_schedule_b", [])
                     if revised_a:
@@ -400,10 +422,19 @@ class SimulationEngine:
 
         # D-08: If gating skipped the call, keep current action unchanged
         if action is None:
+            logger.info("[%s] tick %d | decide: GATED (sector=%s, no new perceptions/schedule)", agent_name, self._tick_count, agent.last_sector)
             return
 
-        # Update gating state for next tick
-        agent.last_sector = action.destination.split(":")[0] if ":" in action.destination else action.destination
+        logger.info(
+            "[%s] tick %d | decide: dest='%s' activity='%s' reason='%s'",
+            agent_name, self._tick_count, action.destination, action.activity, action.reasoning,
+        )
+
+        # Update gating state for next tick — but NOT for fallback "idle" actions,
+        # which are returned when no API key is configured yet. Setting last_sector
+        # to "idle" would cause gating to skip all future LLM calls permanently.
+        if action.destination != "idle":
+            agent.last_sector = action.destination.split(":")[0] if ":" in action.destination else action.destination
 
         # Resolve destination to tile coordinates and compute BFS path (D-09, D-10)
         destination_valid = False

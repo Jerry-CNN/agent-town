@@ -17,7 +17,7 @@ export function ProviderSetup(props: ProviderSetupProps) {
   );
   const [apiKey, setApiKey] = useState(props.initialConfig?.apiKey ?? "");
   const [model, setModel] = useState(
-    props.initialConfig?.model ?? "openrouter/moonshotai/kimi-k2.5"
+    props.initialConfig?.model ?? "openrouter/openai/gpt-4o-mini"
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

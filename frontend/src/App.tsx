@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSimulationStore } from "./store/simulationStore";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { Layout } from "./components/Layout";
 import { ProviderSetup } from "./components/ProviderSetup";
 import { OllamaStatusBanner } from "./components/OllamaStatusBanner";
-import type { ProviderConfig } from "./types";
 
 function App() {
   const providerConfig = useSimulationStore((s) => s.providerConfig);
@@ -13,28 +12,8 @@ function App() {
   const [ollamaAvailable, setOllamaAvailable] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
 
-  const hasHydrated = useRef(false);
-  useEffect(() => {
-    if (hasHydrated.current) return;
-    hasHydrated.current = true;
-    try {
-      const raw = localStorage.getItem("agenttown_provider");
-      if (raw) {
-        const parsed: unknown = JSON.parse(raw);
-        if (
-          parsed !== null &&
-          typeof parsed === "object" &&
-          "provider" in parsed &&
-          (
-            (parsed as ProviderConfig).provider === "ollama" ||
-            (parsed as ProviderConfig).provider === "openrouter"
-          )
-        ) {
-          useSimulationStore.getState().setProviderConfig(parsed as ProviderConfig);
-        }
-      }
-    } catch {}
-  }, []);
+  // No localStorage hydration — show provider setup modal on every fresh page load.
+  // User configures their provider each session. Settings button can reopen it.
 
   useEffect(() => {
     let cancelled = false;

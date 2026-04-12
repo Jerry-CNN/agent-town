@@ -20,7 +20,7 @@
  */
 import { useCallback, useRef, useEffect } from "react";
 import { useTick } from "@pixi/react";
-import { Graphics as PixiGraphics, Text as PixiText, Container as PixiContainer } from "pixi.js";
+import { Graphics as PixiGraphics, Container as PixiContainer } from "pixi.js";
 import { useSimulationStore } from "../store/simulationStore";
 
 /** 8 distinct soft/pastel colors — one per agent slot (D-12) */
@@ -35,19 +35,12 @@ export const AGENT_COLORS: number[] = [
   0x34495e, // slate
 ];
 
-/** Circle radius in pixels (D-04) */
-const RADIUS = 12;
+/** Circle radius in pixels */
+const RADIUS = 18;
 
 /** Lerp coefficient per frame (0.08 ≈ 95% converge within 1.5s at 60fps) */
 const LERP = 0.08;
 
-/** Max chars for activity label (D-07: 25 chars on map, full text in inspector) */
-const MAX_ACTIVITY_LEN = 18;
-
-function truncateActivity(text: string): string {
-  if (text.length <= MAX_ACTIVITY_LEN) return text;
-  return text.slice(0, MAX_ACTIVITY_LEN - 1) + "…";
-}
 
 interface AgentSpriteProps {
   agentId: string;
@@ -64,7 +57,6 @@ function AgentSpriteInner({ agentId, colorIndex, onSelect }: AgentSpriteProps) {
 
   // Refs to PixiJS display objects for imperative updates in useTick
   const containerRef = useRef<PixiContainer | null>(null);
-  const activityTextRef = useRef<PixiText | null>(null);
 
   // Current interpolated pixel position (not React state — no re-renders)
   const currentPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -92,27 +84,11 @@ function AgentSpriteInner({ agentId, colorIndex, onSelect }: AgentSpriteProps) {
     [color],
   );
 
-  // Background pill for activity text (above circle) — D-05
-  const drawActivityPill = useCallback((g: PixiGraphics) => {
-    g.clear();
-    g.setFillStyle({ color: 0x111111, alpha: 0.7 });
-    g.roundRect(-55, -26, 110, 14, 4);
-    g.fill();
-  }, []);
-
-  // Background pill for name text (below circle) — D-05
-  const drawNamePill = useCallback((g: PixiGraphics) => {
-    g.clear();
-    g.setFillStyle({ color: 0x111111, alpha: 0.7 });
-    g.roundRect(-50, 12, 100, 16, 4);
-    g.fill();
-  }, []);
 
   // Read initial agent state for name/initial (stable after first render)
   const initialAgent = useSimulationStore.getState().agents[agentId];
   const agentName = initialAgent?.name ?? agentId;
   const initialLetter = agentName.charAt(0).toUpperCase();
-  const initialActivity = truncateActivity(initialAgent?.activity ?? "");
 
   // Lerp animation — runs every frame via PixiJS ticker (D-05)
   useTick(() => {
@@ -130,13 +106,6 @@ function AgentSpriteInner({ agentId, colorIndex, onSelect }: AgentSpriteProps) {
     containerRef.current.x = cur.x;
     containerRef.current.y = cur.y;
 
-    // Update activity label text imperatively
-    if (activityTextRef.current) {
-      const newActivity = truncateActivity(agent.activity ?? "");
-      if (activityTextRef.current.text !== newActivity) {
-        activityTextRef.current.text = newActivity;
-      }
-    }
   });
 
   const handleClick = useCallback(() => {
@@ -151,53 +120,33 @@ function AgentSpriteInner({ agentId, colorIndex, onSelect }: AgentSpriteProps) {
       cursor="pointer"
       onPointerTap={handleClick}
     >
-      {/* Activity pill background (D-05) — drawn before text so text renders on top */}
-      <pixiGraphics draw={drawActivityPill} />
-
-      {/* Activity text ABOVE the circle — white on dark pill */}
-      <pixiText
-        ref={activityTextRef}
-        text={initialActivity}
-        x={0}
-        y={-19}
-        anchor={{ x: 0.5, y: 1 }}
-        style={{
-          fontFamily: "system-ui, sans-serif",
-          fontSize: 10,
-          fill: 0xffffff,
-        }}
-      />
-
       {/* Colored circle background */}
       <pixiGraphics draw={drawCircle} />
 
       {/* First initial letter — centered on circle */}
       <pixiText
         text={initialLetter}
-        x={-4}
-        y={-6}
+        x={-6}
+        y={-9}
         style={{
           fontFamily: "system-ui, sans-serif",
-          fontSize: 12,
+          fontSize: 18,
           fontWeight: "bold",
           fill: 0xffffff,
         }}
       />
 
-      {/* Name pill background */}
-      <pixiGraphics draw={drawNamePill} />
-
-      {/* Name label BELOW the circle — white on dark pill */}
+      {/* Name label BELOW the circle */}
       <pixiText
         text={agentName}
         x={0}
-        y={20}
+        y={24}
         anchor={{ x: 0.5, y: 0 }}
         style={{
           fontFamily: "system-ui, sans-serif",
-          fontSize: 12,
-          fontWeight: "600",
-          fill: 0xffffff,
+          fontSize: 20,
+          fontWeight: "bold",
+          fill: 0x1a1a2e,
         }}
       />
     </pixiContainer>

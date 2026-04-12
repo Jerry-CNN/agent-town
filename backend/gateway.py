@@ -40,16 +40,18 @@ _llm_semaphore = asyncio.Semaphore(8)
 _latency_window: deque[float] = deque(maxlen=10)
 
 
-def get_adaptive_tick_interval(min_interval: float = 10.0) -> float:
-    """Return max(min_interval, avg_latency * 1.5) from recent LLM calls.
+def get_adaptive_tick_interval(min_interval: float = 10.0, max_interval: float = 20.0) -> float:
+    """Return clamped adaptive tick from recent LLM call latencies.
 
     Per D-04: adaptive tick based on rolling window of successful call latencies.
+    Clamped to [min_interval, max_interval] — prevents runaway ticks when Ollama
+    queues 8 concurrent requests that serialize internally.
     Returns min_interval when no latency data exists (cold start).
     """
     if not _latency_window:
         return min_interval
     avg = sum(_latency_window) / len(_latency_window)
-    return max(min_interval, avg * 1.5)
+    return min(max_interval, max(min_interval, avg * 1.5))
 
 
 def _resolve_model(provider_config: ProviderConfig) -> tuple[str, dict]:
@@ -87,6 +89,15 @@ async def complete_structured(
     - Raises the last exception otherwise — callers must handle or supply a fallback.
     """
     if provider_config is None:
+        # When provider is openrouter but no API key configured yet (user hasn't
+        # completed setup), return fallback immediately instead of crashing.
+        if cfg.state.provider == "openrouter" and not cfg.state.api_key:
+            logger.info("LLM skipped: OpenRouter selected but no API key configured — returning fallback")
+            if fallback is not None:
+                return fallback
+            if response_model is AgentAction:
+                return FALLBACK_AGENT_ACTION  # type: ignore[return-value]
+            raise RuntimeError("No API key configured for OpenRouter. Complete provider setup first.")
         provider_config = ProviderConfig(
             provider=cfg.state.provider,
             api_key=cfg.state.api_key,
@@ -94,10 +105,10 @@ async def complete_structured(
         )
 
     model_str, litellm_kwargs = _resolve_model(provider_config)
+    call_type = response_model.__name__ if hasattr(response_model, '__name__') else str(response_model)
 
     async with _llm_semaphore:
-        # T-09-02: Debug log uses model name only — API key is never logged (T-01-02 preserved)
-        logger.debug("LLM semaphore acquired (model=%s)", model_str)
+        logger.info("LLM call: model=%s type=%s", model_str, call_type)
 
         last_exc: Exception | None = None
         for attempt in range(1, max_retries + 1):
@@ -113,7 +124,7 @@ async def complete_structured(
                 )
                 elapsed = time.perf_counter() - t0
                 _latency_window.append(elapsed)
-                logger.debug("LLM semaphore released (latency=%.2fs)", elapsed)
+                logger.info("LLM done: type=%s latency=%.2fs", call_type, elapsed)
                 return result
             except Exception as exc:
                 last_exc = exc

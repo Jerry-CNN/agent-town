@@ -8,6 +8,18 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI
 
+# Configure backend loggers to INFO so agent step/LLM call logs are visible.
+# Use explicit handler on the "backend" namespace instead of basicConfig(),
+# which is a no-op if Uvicorn has already configured the root logger.
+_backend_handler = logging.StreamHandler()
+_backend_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+_backend_logger = logging.getLogger("backend")
+_backend_logger.setLevel(logging.INFO)
+_backend_logger.addHandler(_backend_handler)
+# Silence noisy third-party loggers
+for _lib in ("httpx", "litellm", "chromadb", "instructor"):
+    logging.getLogger(_lib).setLevel(logging.WARNING)
+
 import backend.config as cfg
 from backend.routers import health, ws, llm, agents
 from backend.simulation.engine import SimulationEngine
