@@ -418,8 +418,8 @@ class SimulationEngine:
         # Codex P1-6: Detect schedule block changes for gating.
         # Compare agent's current schedule entry (by sim time) to detect advancement.
         current_schedule_block = self._get_current_schedule_describe(agent)
-        schedule_changed = (current_schedule_block != getattr(agent, '_last_schedule_block', None))
-        agent._last_schedule_block = current_schedule_block  # type: ignore[attr-defined]
+        schedule_changed = (current_schedule_block != agent._last_schedule_block)
+        agent._last_schedule_block = current_schedule_block
 
         action = await agent.decide(
             simulation_id=self.simulation_id,

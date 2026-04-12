@@ -42,6 +42,11 @@ class Agent:
     last_sector: str | None = None
     had_new_perceptions: bool = True
 
+    # --- Schedule-change gating (Codex P1-6) ---
+    # Tracks the 'describe' of the last schedule entry seen by _agent_step so
+    # the engine can detect block advancement without a dynamic attribute set.
+    _last_schedule_block: str | None = field(default=None, repr=False)
+
     # --- D-04: Cognition wrappers (thin delegation) ---
 
     def perceive(self, maze: "Maze", all_agents: dict) -> "PerceptionResult":
