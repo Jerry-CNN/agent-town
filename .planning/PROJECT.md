@@ -51,7 +51,7 @@ Users can type any event and immediately see AI agents respond to it in a living
 
 ### Active
 
-- [ ] Port CuteRPG tilesets and agent sprite sheets from reference repo into PixiJS renderer
+- [x] Port CuteRPG tilesets and agent sprite sheets from reference repo into PixiJS renderer — Phase 10 complete
 - [ ] Redesign town map in Tiled editor with Agent Town-specific buildings and full interior detail
 - [ ] Replace colored circles with animated agent sprites (4-direction walk cycles)
 - [ ] Implement tileset-based tile map rendering (replace Graphics primitives)
@@ -133,4 +133,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-11 after v1.2 milestone started*
+*Last updated: 2026-04-12 after Phase 10 (Asset Pipeline) complete*
