@@ -320,9 +320,10 @@ class SimulationEngine:
         )
 
         # EVTS-02: Update heard_by for whisper events (D-09: broadcasts skip heard_by)
+        # WR-02: only record the intended target — not every agent that runs _agent_step
         for ev in self._active_events.values():
             if ev.mode == "whisper" and not ev.is_expired(self._tick_count):
-                if agent_name not in ev.heard_by:
+                if ev.target == agent_name and agent_name not in ev.heard_by:
                     ev.heard_by.append(agent_name)
                     logger.debug("[%s] heard whisper event '%s...'", agent_name, ev.text[:30])
 
