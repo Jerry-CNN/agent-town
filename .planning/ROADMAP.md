@@ -240,8 +240,11 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. Each agent sprite displays activity text below or beside the name label, visible without clicking the agent.
   2. Name label background has sufficient contrast (WCAG AA ratio >= 4.5:1) against all sector background colors used in the map.
-**Plans**: TBD
+**Plans**: 1 plan
 **UI hint**: yes
+
+Plans:
+- [ ] 09.2-01-PLAN.md — Restore activity text with pill background, human visual verification
 
 ---
 
@@ -358,7 +361,7 @@ Plans:
 | 8. Visual & Building Behavior | v1.1 | 0/3 | Not started | - |
 | 9. LLM Optimization | v1.1 | 0/3 | Not started | - |
 | 9.1 Backend Runtime Wiring | v1.1 | 0/1 | Not started | - |
-| 9.2 Visual Text Restoration | v1.1 | 0/? | Not started | - |
+| 9.2 Visual Text Restoration | v1.1 | 0/1 | Not started | - |
 | 10. Task & Perception Systems | v1.2 | 0/? | Not started | - |
 | 11. Reflection System | v1.1 | 0/? | Not started | - |
 | 12. Relationship Tracking | v1.1 | 0/? | Not started | - |
