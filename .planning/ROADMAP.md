@@ -95,7 +95,11 @@ Plans:
   2. The backend `town.json` is regenerated from the Tiled export — sector names and arena coordinate boundaries match the map visually (an agent assigned to "Stock Exchange" navigates to the tile region where that building visually sits).
   3. Agent pathfinding uses the collision layer exported from Tiled rather than hardcoded obstacle data — blocking walls in Tiled halt agent movement; removing a wall in Tiled and re-exporting makes that tile walkable without any backend code change.
   4. Every agent home, workplace, and routine destination maps to a reachable walkable tile — no agent spawns in walls or has unreachable schedule destinations after the map export.
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 11-01-PLAN.md — Sync script + tests + Tiled authoring guide
+- [ ] 11-02-PLAN.md — User authors map in Tiled (human checkpoint)
+- [ ] 11-03-PLAN.md — Run sync on real map, validate reachability, update frontend dimensions
 
 ---
 
@@ -179,7 +183,7 @@ Plans:
 | 9.1 Backend Runtime Wiring | v1.1 | 1/1 | Complete | 2026-04-12 |
 | 9.2 Visual Text Restoration | v1.1 | 1/1 | Complete | 2026-04-12 |
 | 10. Asset Pipeline | v1.2 | 0/2 | Planned | - |
-| 11. Town Map Design & Backend Sync | v1.2 | 0/? | Not started | - |
+| 11. Town Map Design & Backend Sync | v1.2 | 0/3 | Planned | - |
 | 12. Tile Map Rendering | v1.2 | 0/? | Not started | - |
 | 13. Animated Agent Sprites | v1.2 | 0/? | Not started | - |
 | 14. UI Polish | v1.2 | 0/? | Not started | - |
