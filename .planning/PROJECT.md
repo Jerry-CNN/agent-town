@@ -8,13 +8,16 @@ A web-based generative agents playground where users watch AI-powered characters
 
 Users can type any event and immediately see AI agents respond to it in a living, breathing town — the magic is watching emergent behavior unfold.
 
-## Current State
+## Current Milestone: v1.2 Pixel Art UI
 
-**Shipped:** v1.0 Core (2026-04-10), v1.1 Architecture & Polish (2026-04-12)
+**Goal:** Transform the prototype-looking UI into a pixel-art RPG town that matches the visual quality of the original Generative Agents project.
 
-v1.1 delivered OOP refactoring (Agent/Building/Event classes), building walls with operating hours, 2-level LLM decision cascade with adaptive tick, conversation repetition detection, semaphore concurrency, and activity text restoration with contrast compliance.
-
-**Next milestone:** v1.2 Agent Behavior — reflection system, relationship tracking, task state machine, perception diffing
+**Target features:**
+- Port CuteRPG tilesets and agent sprite sheets from reference repo into PixiJS renderer
+- Redesign town map in Tiled editor with Agent Town-specific buildings and full interior detail
+- Replace colored circles with animated agent sprites (4-direction walk cycles)
+- Implement tileset-based tile map rendering (replace Graphics primitives)
+- Light UI polish — harmonize sidebar, controls, typography with pixel-art aesthetic
 
 ## Requirements
 
@@ -47,6 +50,14 @@ v1.1 delivered OOP refactoring (Agent/Building/Event classes), building walls wi
 - [x] Event lifecycle wired into runtime (creation, propagation tracking, expiry) — Validated in v1.1
 
 ### Active
+
+- [ ] Port CuteRPG tilesets and agent sprite sheets from reference repo into PixiJS renderer
+- [ ] Redesign town map in Tiled editor with Agent Town-specific buildings and full interior detail
+- [ ] Replace colored circles with animated agent sprites (4-direction walk cycles)
+- [ ] Implement tileset-based tile map rendering (replace Graphics primitives)
+- [ ] Light UI polish — harmonize sidebar, controls, typography with pixel-art aesthetic
+
+### Deferred (v1.3 Agent Behavior)
 
 - [ ] Reflection system: agents form higher-level insights when poignancy threshold is crossed
 - [ ] Relationship tracking: per-pair familiarity, sentiment, last interaction
@@ -122,4 +133,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-12 after v1.1 milestone shipped*
+*Last updated: 2026-04-11 after v1.2 milestone started*

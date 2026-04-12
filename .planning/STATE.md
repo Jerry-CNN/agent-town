@@ -1,34 +1,32 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Architecture & Polish
-status: executing
-last_updated: "2026-04-12T05:49:18.000Z"
-last_activity: 2026-04-12
+milestone: v1.2
+milestone_name: Pixel Art UI
+status: defining_requirements
+last_updated: "2026-04-11T00:00:00.000Z"
+last_activity: 2026-04-11
 progress:
-  total_phases: 5
-  completed_phases: 4
-  total_plans: 10
-  completed_plans: 9
-  percent: 90
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Agent Town
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-10)
+See: .planning/PROJECT.md (updated 2026-04-11)
 **Core value:** Users can type any event and immediately see AI agents respond to it in a living, breathing town
-**Current focus:** Phase 8 — Visual & Building Behavior
+**Current focus:** Defining requirements for v1.2 Pixel Art UI
 
 ## Current Position
 
-Phase: 9.2
-Plan: Not started
-Status: Executing Phase 8
-Last activity: 2026-04-12
-
-Progress (v1.1): [░░░░░░░░░░] 0%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-11 — Milestone v1.2 started
 
 ## Accumulated Context
 
@@ -52,3 +50,4 @@ None
 
 - 2026-04-08: Project initialized, v1.0 roadmap created (6 phases, 28 requirements mapped)
 - 2026-04-10: v1.0 shipped; v1.1 roadmap created (6 phases, 26 requirements mapped)
+- 2026-04-11: Milestone v1.2 Pixel Art UI started
