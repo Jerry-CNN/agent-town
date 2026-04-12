@@ -1,7 +1,7 @@
 # Roadmap: Agent Town
 
 **Created:** 2026-04-08
-**Updated:** 2026-04-11 (Phase 9 plans created)
+**Updated:** 2026-04-11 (Phase 9.1 plans created)
 **Granularity:** Standard
 
 ---
@@ -224,8 +224,11 @@ Plans:
   2. When an agent perceives an event, `Event.heard_by` is updated with the agent's name and the current tick.
   3. Events older than `EVENT_EXPIRY_TICKS` return `True` from `is_expired()` and are excluded from active event lists.
   4. `engine._agent_step()` calls `agent.perceive()` and `agent.decide()` instead of importing and calling `perceive()` and `decide_action()` directly.
-**Plans**: TBD
+**Plans**: 1 plan
 **UI hint**: no
+
+Plans:
+- [ ] 09.1-01-PLAN.md — Event lifecycle wiring (inject_event, tick advancement, expiry cleanup), Agent wrapper routing (perceive/decide), heard_by population, test scaffold + existing test mock fixes
 
 ---
 
@@ -354,7 +357,7 @@ Plans:
 | 7. OOP Foundation | v1.1 | 0/2 | Not started | - |
 | 8. Visual & Building Behavior | v1.1 | 0/3 | Not started | - |
 | 9. LLM Optimization | v1.1 | 0/3 | Not started | - |
-| 9.1 Backend Runtime Wiring | v1.1 | 0/? | Not started | - |
+| 9.1 Backend Runtime Wiring | v1.1 | 0/1 | Not started | - |
 | 9.2 Visual Text Restoration | v1.1 | 0/? | Not started | - |
 | 10. Task & Perception Systems | v1.2 | 0/? | Not started | - |
 | 11. Reflection System | v1.1 | 0/? | Not started | - |
