@@ -20,9 +20,9 @@ decisions:
   - roundPixels=true added to Application component to prevent sub-pixel positioning blur at fractional zoom scales
   - CSS image-rendering: pixelated added to index.html as browser-level anti-aliasing backup independent of PixiJS
 metrics:
-  duration: "5m"
+  duration: "10m"
   completed: "2026-04-12"
-  tasks_completed: 1
+  tasks_completed: 2
   tasks_total: 2
   files_modified: 2
 ---
@@ -46,12 +46,7 @@ Configured three complementary layers of pixel-art rendering quality in the Pixi
 | Task | Name | Commit | Files |
 |------|------|--------|-------|
 | 1 | Configure scaleMode nearest, CSS pixelated, and roundPixels | 603adb2 | frontend/src/components/MapCanvas.tsx, frontend/index.html |
-
-## Pending (Checkpoint)
-
-| Task | Name | Type | Status |
-|------|------|------|--------|
-| 2 | Verify pixel-art crispness in browser | checkpoint:human-verify | Awaiting human verification |
+| 2 | Verify pixel-art crispness in browser | checkpoint approved | Human-verified: app loads without errors, no visual regressions. Crisp rendering will be confirmed in Phase 12 when tilesets are rendered. |
 
 ## Verification Results
 
