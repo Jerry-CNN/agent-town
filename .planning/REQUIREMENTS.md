@@ -1,10 +1,10 @@
 # Requirements: Agent Town
 
 **Defined:** 2026-04-08
-**Updated:** 2026-04-10 (v1.1 milestone)
+**Updated:** 2026-04-11 (v1.2 milestone)
 **Core Value:** Users can type any event and immediately see AI agents respond to it in a living, breathing town
 
-## v1.0 Requirements (Completed)
+## v1.0 Requirements (Complete)
 
 ### World & Map
 
@@ -54,41 +54,76 @@
 - [x] **INF-02**: All agent processing is async/concurrent (not sequential) for real-time performance
 - [x] **INF-03**: Structured LLM output via Pydantic schemas with retry and fallback on parse failure
 
-## v1.1 Requirements
-
-Requirements for v1.1 milestone: Architecture & Polish.
+## v1.1 Requirements (Complete)
 
 ### Agent Abstraction
 
-- [ ] **ARCH-01**: Agent class unifies AgentConfig + AgentState into a single object with identity, runtime state, and system fields (relationships, perception state, poignancy, task queue)
-- [ ] **ARCH-02**: Agent class has cognition methods (perceive, decide, converse, reflect) that delegate to existing functions
-- [ ] **ARCH-03**: SimulationEngine uses Agent objects instead of separate config/state dicts
+- [x] **ARCH-01**: Agent class unifies AgentConfig + AgentState into a single object with identity, runtime state, and system fields
+- [x] **ARCH-02**: Agent class has cognition methods (perceive, decide, converse, reflect) that delegate to existing functions
+- [x] **ARCH-03**: SimulationEngine uses Agent objects instead of separate config/state dicts
 
 ### Building System
 
-- [ ] **BLD-01**: Building class with properties (name, operating hours, purpose tag)
-- [ ] **BLD-02**: Buildings have wall tiles marked as collision so agents cannot walk through them
-- [ ] **BLD-03**: Agents respect building operating hours when choosing destinations (closed buildings excluded from LLM context; agent re-decides from open options)
+- [x] **BLD-01**: Building class with properties (name, operating hours, purpose tag)
+- [x] **BLD-02**: Buildings have wall tiles marked as collision so agents cannot walk through them
+- [x] **BLD-03**: Agents respect building operating hours when choosing destinations
 
 ### Event System
 
-- [ ] **EVTS-01**: Event class tracks lifecycle (created, active, spreading, expired)
-- [ ] **EVTS-02**: Events track propagation — which agents heard the event and when
-- [ ] **EVTS-03**: Events expire after a configurable duration
+- [x] **EVTS-01**: Event class tracks lifecycle (created, active, spreading, expired)
+- [x] **EVTS-02**: Events track propagation — which agents heard the event and when
+- [x] **EVTS-03**: Events expire after a configurable duration
 
 ### Visual
 
-- [ ] **VIS-01**: Building walls are rendered as visible outlines on the map
-- [ ] **VIS-02**: Agent name and activity text is readable at default zoom level
+- [x] **VIS-01**: Building walls are rendered as visible outlines on the map
+- [x] **VIS-02**: Agent name and activity text is readable at default zoom level
 
 ### LLM Optimization
 
-- [ ] **LLM-01**: Agent decisions use 3-level resolution (sector -> arena -> object) with per-sector gating
-- [ ] **LLM-02**: Tick interval reduced from 30s to 10s for more responsive agents
-- [ ] **LLM-03**: Conversations detect repetition and terminate early instead of fixed turn count
-- [ ] **LLM-04**: asyncio.Semaphore controls concurrent LLM calls to prevent rate limits
+- [x] **LLM-01**: Agent decisions use 2-level resolution (sector -> arena) with per-sector gating
+- [x] **LLM-02**: Tick interval reduced from 30s to 10s for more responsive agents
+- [x] **LLM-03**: Conversations detect repetition and terminate early instead of fixed turn count
+- [x] **LLM-04**: asyncio.Semaphore controls concurrent LLM calls to prevent rate limits
 
 ## v1.2 Requirements
+
+Requirements for v1.2 milestone: Pixel Art UI.
+
+### Tile Map Rendering
+
+- [ ] **TILE-01**: User sees a pixel-art tile map with CuteRPG tilesets instead of colored rectangles
+- [ ] **TILE-02**: User sees full building interiors with furniture and room layouts rendered from Tiled layers
+- [ ] **TILE-03**: User sees agents walk behind foreground objects (trees, roofs) via proper depth ordering
+- [ ] **TILE-04**: User sees a loading screen while tile map assets are being loaded
+
+### Agent Sprites
+
+- [ ] **SPRT-01**: User sees animated agent sprites with directional walk cycles (4 directions, 4 frames each) instead of colored circles
+- [ ] **SPRT-02**: User sees agents face their movement direction as they walk
+- [ ] **SPRT-03**: User sees agents stop in an idle pose when they reach their destination
+- [ ] **SPRT-04**: User sees agent portraits (32x32 thumbnails) in the agent inspector sidebar
+- [ ] **SPRT-05**: User sees pixel-art styled speech/activity bubbles above agents
+
+### Town Design
+
+- [ ] **TOWN-01**: User sees an Agent Town-specific map designed in Tiled with thematic buildings (stock exchange, wedding hall, cafe, park, homes, office, shop)
+- [ ] **TOWN-02**: Backend town.json is regenerated from the Tiled map export preserving sector/arena coordinate structure
+- [ ] **TOWN-03**: Agent collision detection uses the Tiled collision layer instead of hardcoded collision data
+
+### UI Polish
+
+- [ ] **UIPOL-01**: User sees sidebar and control colors harmonized with the pixel-art map aesthetic
+- [ ] **UIPOL-02**: User sees pixel-art typography for map labels and key UI elements
+- [ ] **UIPOL-03**: User sees a loading overlay with progress indication while assets load at startup
+
+### Asset Pipeline
+
+- [ ] **PIPE-01**: CuteRPG tilesets and agent sprite sheets are ported from reference repo into frontend assets
+- [ ] **PIPE-02**: Reference sprite atlas (Phaser format) is converted to PixiJS-compatible format
+- [ ] **PIPE-03**: PixiJS initializes with scaleMode nearest to preserve pixel-art crispness
+
+## v1.3 Requirements
 
 Deferred to next milestone (Agent Behavior). Tracked but not in current roadmap.
 
@@ -106,7 +141,7 @@ Deferred to next milestone (Agent Behavior). Tracked but not in current roadmap.
 ### Reflection
 
 - [ ] **RFL-01**: Agents accumulate poignancy from perceived events and conversations
-- [ ] **RFL-02**: When poignancy crosses threshold, agent generates higher-level insight memories ("thoughts")
+- [ ] **RFL-02**: When poignancy crosses threshold, agent generates higher-level insight memories
 - [ ] **RFL-03**: Reflection runs as background asyncio task, never blocking the agent step
 
 ### Relationship System
@@ -143,7 +178,6 @@ Deferred to future release. Tracked but not in current roadmap.
 ### Display (v2)
 
 - **DSP-03**: Visible thought stream for inspected agent (internal monologue)
-- **DSP-04**: Conversation speech bubbles on the map
 - **DSP-05**: Memory timeline visualization
 - **DSP-06**: Relationship graph between agents
 
@@ -160,6 +194,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | LLM streaming for all agents | Overwhelming; activity feed is sufficient |
 | Custom agent creation | Pre-defined cast for v1 |
 | Agent subclassing / polymorphism | OOP is for structural clarity; all agents run same code with personality from LLM prompts |
+| Zoom & pan controls | Fixed viewport sufficient for v1.2; pixi-viewport deferred |
 
 ## Traceability
 
@@ -197,52 +232,37 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EVT-03 | Phase 6 | Complete |
 | EVT-04 | Phase 6 | Complete |
 
-### v1.1 (In Progress)
+### v1.1 (Complete)
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ARCH-01 | Phase 7 | Pending |
-| ARCH-02 | Phase 9.1 | Pending |
-| ARCH-03 | Phase 7 | Pending |
-| BLD-01 | Phase 7 | Pending |
-| EVTS-01 | Phase 9.1 | Pending |
-| EVTS-02 | Phase 9.1 | Pending |
-| EVTS-03 | Phase 9.1 | Pending |
-| BLD-02 | Phase 8 | Pending |
-| BLD-03 | Phase 8 | Pending |
-| VIS-01 | Phase 8 | Pending |
-| VIS-02 | Phase 9.2 | Pending |
-| LLM-01 | Phase 9 | Pending |
-| LLM-02 | Phase 9 | Pending |
-| LLM-03 | Phase 9 | Pending |
-| LLM-04 | Phase 9 | Pending |
+| ARCH-01 | Phase 7 | Complete |
+| ARCH-02 | Phase 9.1 | Complete |
+| ARCH-03 | Phase 7 | Complete |
+| BLD-01 | Phase 7 | Complete |
+| EVTS-01 | Phase 9.1 | Complete |
+| EVTS-02 | Phase 9.1 | Complete |
+| EVTS-03 | Phase 9.1 | Complete |
+| BLD-02 | Phase 8 | Complete |
+| BLD-03 | Phase 8 | Complete |
+| VIS-01 | Phase 8 | Complete |
+| VIS-02 | Phase 9.2 | Complete |
+| LLM-01 | Phase 9 | Complete |
+| LLM-02 | Phase 9 | Complete |
+| LLM-03 | Phase 9 | Complete |
+| LLM-04 | Phase 9 | Complete |
 
-**Coverage (v1.1):**
-- v1.1 requirements: 15 total
-- Mapped to phases: 15
-- Unmapped: 0
-
-### v1.2 (Planned)
+### v1.2 (Active)
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TSK-01 | Phase 10 | Pending |
-| TSK-02 | Phase 10 | Pending |
-| TSK-03 | Phase 10 | Pending |
-| PCPT-01 | Phase 10 | Pending |
-| PCPT-02 | Phase 10 | Pending |
-| RFL-01 | Phase 11 | Pending |
-| RFL-02 | Phase 11 | Pending |
-| RFL-03 | Phase 11 | Pending |
-| REL-01 | Phase 12 | Pending |
-| REL-02 | Phase 12 | Pending |
-| REL-03 | Phase 12 | Pending |
+| (To be mapped by roadmapper) | | |
 
 **Coverage (v1.2):**
-- v1.2 requirements: 11 total
-- Mapped to phases: 11
-- Unmapped: 0
+- v1.2 requirements: 16 total
+- Mapped to phases: 0
+- Unmapped: 16
 
 ---
 *Requirements defined: 2026-04-08*
-*Last updated: 2026-04-10 after v1.1/v1.2 milestone split (Codex review)*
+*Last updated: 2026-04-11 after v1.2 Pixel Art UI milestone started*
