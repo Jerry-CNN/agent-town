@@ -20,7 +20,7 @@
  */
 import { useCallback, useRef, useEffect } from "react";
 import { useTick } from "@pixi/react";
-import { Graphics as PixiGraphics, Container as PixiContainer } from "pixi.js";
+import { Graphics as PixiGraphics, Text as PixiText, Container as PixiContainer } from "pixi.js";
 import { useSimulationStore } from "../store/simulationStore";
 
 /** 8 distinct soft/pastel colors — one per agent slot (D-12) */
@@ -41,6 +41,11 @@ const RADIUS = 18;
 /** Lerp coefficient per frame (0.08 ≈ 95% converge within 1.5s at 60fps) */
 const LERP = 0.08;
 
+const MAX_ACTIVITY_LEN = 18;
+function truncateActivity(text: string): string {
+  if (text.length <= MAX_ACTIVITY_LEN) return text;
+  return text.slice(0, MAX_ACTIVITY_LEN - 1) + "\u2026";
+}
 
 interface AgentSpriteProps {
   agentId: string;
@@ -57,6 +62,7 @@ function AgentSpriteInner({ agentId, colorIndex, onSelect }: AgentSpriteProps) {
 
   // Refs to PixiJS display objects for imperative updates in useTick
   const containerRef = useRef<PixiContainer | null>(null);
+  const activityTextRef = useRef<PixiText | null>(null);
 
   // Current interpolated pixel position (not React state — no re-renders)
   const currentPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -72,6 +78,14 @@ function AgentSpriteInner({ agentId, colorIndex, onSelect }: AgentSpriteProps) {
       }
     }
   }, [agentId]);
+
+  // Stable draw callback for the activity pill background — geometry is constant
+  const drawActivityPill = useCallback((g: PixiGraphics) => {
+    g.clear();
+    g.setFillStyle({ color: 0x111111, alpha: 0.7 });
+    g.roundRect(-60, -30, 120, 16, 4);
+    g.fill();
+  }, []);
 
   // Stable draw callback for the circle graphic — color never changes per agent
   const drawCircle = useCallback(
@@ -89,6 +103,7 @@ function AgentSpriteInner({ agentId, colorIndex, onSelect }: AgentSpriteProps) {
   const initialAgent = useSimulationStore.getState().agents[agentId];
   const agentName = initialAgent?.name ?? agentId;
   const initialLetter = agentName.charAt(0).toUpperCase();
+  const initialActivity = truncateActivity(initialAgent?.activity ?? "");
 
   // Lerp animation — runs every frame via PixiJS ticker (D-05)
   useTick(() => {
@@ -106,6 +121,12 @@ function AgentSpriteInner({ agentId, colorIndex, onSelect }: AgentSpriteProps) {
     containerRef.current.x = cur.x;
     containerRef.current.y = cur.y;
 
+    if (activityTextRef.current) {
+      const newActivity = truncateActivity(agent.activity ?? "");
+      if (activityTextRef.current.text !== newActivity) {
+        activityTextRef.current.text = newActivity;
+      }
+    }
   });
 
   const handleClick = useCallback(() => {
@@ -120,6 +141,21 @@ function AgentSpriteInner({ agentId, colorIndex, onSelect }: AgentSpriteProps) {
       cursor="pointer"
       onPointerTap={handleClick}
     >
+      {/* Activity text with pill background — above the circle */}
+      <pixiGraphics draw={drawActivityPill} />
+      <pixiText
+        ref={activityTextRef}
+        text={initialActivity}
+        x={0}
+        y={-24}
+        anchor={{ x: 0.5, y: 1 }}
+        style={{
+          fontFamily: "system-ui, sans-serif",
+          fontSize: 11,
+          fill: 0xffffff,
+        }}
+      />
+
       {/* Colored circle background */}
       <pixiGraphics draw={drawCircle} />
 
