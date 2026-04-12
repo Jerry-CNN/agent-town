@@ -142,12 +142,22 @@ async def test_heard_by_updated_on_whisper_perception():
 
     maze = _make_small_maze()
     cfg = _make_agent_config("Alice", (5, 5))
-    engine = SimulationEngine(maze=maze, agents=[cfg], simulation_id="test-evts-02")
+    cfg_bob = _make_agent_config("Bob", (7, 7))
+    engine = SimulationEngine(maze=maze, agents=[cfg, cfg_bob], simulation_id="test-evts-02")
     engine._agents["Alice"] = Agent(
         name="Alice",
         config=cfg,
         coord=(5, 5),
         path=[(6, 5)],  # path non-empty -> _agent_step returns after perceive
+        current_activity="idle",
+        schedule=[],
+    )
+    # WR-05: add a second agent so we can assert the whisper does NOT reach Bob
+    engine._agents["Bob"] = Agent(
+        name="Bob",
+        config=cfg_bob,
+        coord=(7, 7),
+        path=[],
         current_activity="idle",
         schedule=[],
     )
@@ -181,6 +191,10 @@ async def test_heard_by_updated_on_whisper_perception():
     # EVTS-02: heard_by should contain "Alice" for the whisper event
     assert "Alice" in whisper_event.heard_by, (
         f"Expected 'Alice' in whisper_event.heard_by, got {whisper_event.heard_by}"
+    )
+    # WR-05: negative assertion — Bob must NOT appear in heard_by for a whisper targeting Alice
+    assert "Bob" not in whisper_event.heard_by, (
+        "Bob should not be in heard_by for a whisper targeting Alice"
     )
     # Broadcast events must NOT track heard_by (D-09)
     assert broadcast_event.heard_by == [], (
