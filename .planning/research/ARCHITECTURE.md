@@ -1,602 +1,613 @@
 # Architecture Research
 
-**Domain:** Web-based Generative Agents Simulation — v1.1 OOP Refactor + Visual Polish
-**Researched:** 2026-04-10
-**Confidence:** HIGH (full codebase read, reference implementation cross-referenced)
+**Domain:** Pixel-art RPG rendering upgrade — PixiJS v8 tileset + animated sprite integration
+**Researched:** 2026-04-11
+**Confidence:** HIGH (existing code read directly; reference impl inspected; pixi-tiledmap v2 docs verified)
 
 ---
 
-## Current Architecture (Baseline)
+## What This Document Covers
 
-The v1.0 codebase is functional but structured as a procedural simulation loop wrapped
-around static data containers. Understanding what exists is the prerequisite for all
-integration decisions below.
+This is a focused integration analysis — not a greenfield architecture. The question is: given the existing React 19 + PixiJS v8 + @pixi/react v8 pipeline, what changes are required to port CuteRPG tilesets, a new Tiled-authored map, and per-agent animated sprite sheets? Everything below is grounded in direct inspection of the running codebase and reference implementation.
 
-### Backend Module Map
+---
 
-```
-backend/
-├── main.py                     # FastAPI app + lifespan (wires engine + manager)
-├── gateway.py                  # LLM singleton: instructor + LiteLLM
-├── config.py                   # Runtime provider state (mutable singleton)
-├── schemas.py                  # ALL Pydantic models (flat file)
-├── simulation/
-│   ├── engine.py               # SimulationEngine + AgentState dataclass
-│   ├── world.py                # Tile + Maze classes (BFS, address index)
-│   ├── connection_manager.py   # WebSocket broadcast fan-out
-│   └── map_generator.py        # town.json builder (static data)
-├── agents/
-│   ├── loader.py               # load_all_agents() -> list[AgentConfig]
-│   ├── cognition/
-│   │   ├── perceive.py         # perceive() -- pure Python, no LLM
-│   │   ├── decide.py           # decide_action() -- 1 LLM call
-│   │   ├── converse.py         # attempt_conversation() + run_conversation()
-│   │   └── plan.py             # generate_daily_schedule() + decompose_hour()
-│   └── memory/
-│       ├── store.py            # ChromaDB add/score/reset -- asyncio.to_thread
-│       └── retrieval.py        # retrieve_memories() -- composite scoring
-├── prompts/                    # One file per prompt template
-│   ├── action_decide.py
-│   ├── conversation_start.py
-│   ├── conversation_turn.py
-│   ├── importance_score.py
-│   ├── schedule_init.py
-│   ├── schedule_decompose.py
-│   └── schedule_revise.py
-└── routers/
-    ├── ws.py                   # WebSocket endpoint
-    ├── agents.py               # REST: agent list
-    ├── llm.py                  # REST: provider config
-    └── health.py               # REST: health check
-```
-
-### Current Data Flow (Per-Tick)
+## Current System Overview
 
 ```
-SimulationEngine._tick_loop()
-    asyncio.TaskGroup: all agents in parallel
-        _agent_step_safe(name, state)
-            _agent_step(name, state)
-                perceive(coord, name, maze, all_agents_view)  -- pure Python
-                    -> PerceptionResult{nearby_agents, nearby_events, location}
-                if state.path: return   (movement handled by _movement_loop)
-                attempt_conversation(...)  -- 1 LLM call (ConversationDecision)
-                    if should_talk:
-                        run_conversation(...)  -- 2-8 LLM calls
-                        return
-                decide_action(...)  -- 1 LLM call (AgentAction)
-                    retrieve_memories(...)  -- ChromaDB query
-                    maze.resolve_destination(action.destination) -> coord
-                    maze.find_path(state.coord, dest_coord) -> path
-                add_memory(...) -- ChromaDB write
-                _emit_agent_update(name, state) -> broadcast callback
+┌──────────────────────────────────────────────────────────────┐
+│  React Layer                                                  │
+│  App.tsx → Layout.tsx → MapCanvas.tsx                         │
+│  ├── <Application> (@pixi/react PixiJS wrapper)               │
+│  │   ├── <pixiContainer x={pan} y={pan} scale={0.45}>         │
+│  │   │   ├── <TileMap />          ← Graphics API draws rects  │
+│  │   │   └── <AgentSprite /> ×N   ← Graphics circles + lerp  │
+│  │   └── [pan/zoom via React pointer events on wrapper div]   │
+│  └── Sidebar: ActivityFeed, AgentInspector, BottomBar         │
+├──────────────────────────────────────────────────────────────┤
+│  State Layer                                                   │
+│  simulationStore.ts (Zustand)                                  │
+│  ├── agents: Record<name, AgentState>                          │
+│  │   └── position: {x, y}  ← pixel coords (tile * 32)         │
+│  └── useWebSocket.ts → updateAgentPosition(coord)              │
+├──────────────────────────────────────────────────────────────┤
+│  Data (Static)                                                 │
+│  frontend/src/data/town.json   ← 100×100 tile grid            │
+│  backend/data/map/town.json    ← same data, backend canonical │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-### Current State Ownership
+### What the Current Code Actually Does
 
-| Data | Where Held | Type |
-|------|-----------|------|
-| Agent personality | AgentConfig (Pydantic) | Static, loaded from JSON |
-| Agent runtime state | AgentState (dataclass) | Mutable, in _agent_states dict |
-| Conversation cooldowns | _conversation_cooldowns dict | Module-level in converse.py |
-| Memory | ChromaDB EphemeralClient | Async, per-simulation collection |
-| Tile grid + BFS | Maze instance | Shared reference in SimulationEngine |
-| WebSocket clients | ConnectionManager | Set of active WebSocket objects |
-| Provider config | config.state singleton | Mutable global |
+**TileMap.tsx** — Pure PixiJS Graphics API. At module load, it pre-computes sector bounding boxes and collision tile coordinates from `town.json`. In `drawMap()`, it draws: (1) road background rectangle, (2) collision tiles as dark rects, (3) sector zones as colored rects with strokes, then renders pixiText labels per sector. The draw callback has empty deps — stable across all re-renders. No textures, no sprites.
 
-### Current Frontend Component Map
+**AgentSprite.tsx** — Each agent is a PixiJS Container with: a colored circle (Graphics), initial letter (Text), activity text with pill background (Text + Graphics), and a name label. Position updates happen imperatively in `useTick()` reading `getState()` directly — bypasses React re-render on every frame. Lerp coefficient 0.08, ~1.5s convergence at 60fps.
+
+**Coordinate system** — Backend sends `[tile_x, tile_y]` as integers. `updateAgentPosition` in the store multiplies by `TILE_SIZE = 32` to get pixel coords. `AgentState.position` is `{ x: tileX * 32, y: tileY * 32 }` — top-left corner of tile, not center. No changes needed to this protocol.
+
+---
+
+## Target System Overview (Post-Upgrade)
 
 ```
-frontend/src/
-├── App.tsx                     # Root: ProviderSetup gate -> Layout
-├── main.tsx                    # React 19 entry
-├── store/simulationStore.ts    # Zustand store (agents, feed, WS state)
-├── hooks/useWebSocket.ts       # WS lifecycle + message dispatch
-├── types/index.ts              # Shared TypeScript interfaces
-├── data/town.json              # Static map (imported at build time)
-└── components/
-    ├── Layout.tsx              # Flex layout: MapCanvas | ActivityFeed | AgentInspector
-    ├── MapCanvas.tsx           # @pixi/react Application wrapper + auto-scale
-    ├── TileMap.tsx             # Static tile grid (colored rects + sector labels)
-    ├── AgentSprite.tsx         # Per-agent: circle + initial + activity + lerp
-    ├── AgentInspector.tsx      # Right panel: selected agent details
-    ├── ActivityFeed.tsx        # Bottom/side feed: WS event log
-    ├── BottomBar.tsx           # Event injection UI (broadcast/whisper)
-    ├── ProviderSetup.tsx       # LLM provider config gate
-    └── OllamaStatusBanner.tsx  # Ollama health indicator
+┌──────────────────────────────────────────────────────────────┐
+│  React Layer                                                  │
+│  MapCanvas.tsx [MODIFIED: asset-loading gate]                 │
+│  ├── <Application>                                            │
+│  │   ├── <pixiContainer x={pan} y={pan} scale>                │
+│  │   │   ├── <TiledMapBackground />  ← NEW: layers 0-9        │
+│  │   │   ├── <AgentSprite /> ×N      ← MODIFIED: AnimatedSprite│
+│  │   │   └── <TiledMapForeground />  ← NEW: Foreground L1+L2  │
+│  │   └── [pan/zoom unchanged]                                 │
+│  └── Sidebar [MODIFIED: pixel-art typography/colors]          │
+├──────────────────────────────────────────────────────────────┤
+│  Asset Loading Layer (NEW)                                     │
+│  useAssets.ts hook                                             │
+│  ├── pixi-tiledmap extension registered once at app init       │
+│  ├── Assets.loadBundle('map') → town.tmj + all tileset PNGs   │
+│  └── Assets.loadBundle('agents') → per-agent sprite.json      │
+│      sheetCache: Map<agentName, Spritesheet> (module-level)   │
+├──────────────────────────────────────────────────────────────┤
+│  State Layer [UNCHANGED]                                       │
+│  simulationStore.ts — position in pixel coords, unchanged      │
+│  useWebSocket.ts — coord protocol unchanged                    │
+├──────────────────────────────────────────────────────────────┤
+│  Data (Static) [REPLACED]                                      │
+│  frontend/public/assets/tilemap/town.tmj  ← new Tiled map     │
+│  frontend/public/assets/tilemap/*.png     ← CuteRPG + rooms   │
+│  frontend/public/assets/agents/sprite.json ← shared atlas     │
+│  frontend/public/assets/agents/*/texture.png ← per-agent PNG  │
+│  backend/data/map/town.json               ← regenerated from  │
+│                                             new Tiled map      │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## v1.1 Target: What Changes vs What Stays
+## Component Boundary Map: New vs Modified vs Unchanged
 
-### What STAYS Unchanged
-
-These components are correct and are not touched by v1.1:
-
-| Component | Why It Stays |
-|-----------|-------------|
-| gateway.py complete_structured() | LLM abstraction is correct. 3-level decision is a prompt/logic change, not a gateway change |
-| agents/memory/store.py | Memory storage is correct. Reflection adds calls to existing functions |
-| agents/memory/retrieval.py | Composite scoring is correct and paper-aligned |
-| simulation/connection_manager.py | WebSocket fan-out is correct |
-| simulation/map_generator.py | Map data generation is static |
-| config.py | Provider config singleton is correct |
-| All routers (ws.py, agents.py, health.py, llm.py) | No new endpoints; WS message contracts unchanged |
-| All prompt templates in prompts/ | Templates stay; new prompts are added alongside |
-| Frontend: useWebSocket.ts, simulationStore.ts, App.tsx, Layout.tsx, ProviderSetup.tsx, OllamaStatusBanner.tsx, BottomBar.tsx | No WS contract changes, no store schema changes |
-| Frontend: AgentInspector.tsx, ActivityFeed.tsx | Read from store only; unchanged unless store shape changes |
-
-### What CHANGES (Modified)
-
-| Component | What Changes | Why |
-|-----------|-------------|-----|
-| simulation/engine.py AgentState | Add reflection_poignancy: int field | Reflection needs accumulated poignancy across ticks |
-| simulation/engine.py _agent_step | Add reflection call after perceive; add 3-level decision routing | Reflection hook; 3-level decision replaces flat decide_action |
-| simulation/engine.py TICK_INTERVAL | Reduce from 30s toward 10s | Faster agent responsiveness; actual value tuned by LLM latency |
-| simulation/world.py Maze | Add sector-level arena address lookup support | 3-level decision needs to resolve sector:arena strings |
-| schemas.py | Add Event model, ReflectionInsight model, ThreeLevelAction model | New structured LLM output types |
-| agents/cognition/decide.py decide_action() | Replace flat sector choice with 3-level sequential LLM calls | Reference implementation fidelity |
-| agents/cognition/converse.py run_conversation() | Add early termination on repetition detection | Conversation termination feature |
-| frontend/src/components/TileMap.tsx | Add wall rendering: draw border lines around sector bounding boxes | Building walls visual |
-| frontend/src/types/index.ts | Add BuildingWall type if derived wall segments need typing | Depends on approach |
-
-### What is NEW (Additive)
-
-| New Component | Location | Purpose |
-|--------------|----------|---------|
-| agents/cognition/reflect.py | backend/agents/cognition/ | Reflection system: poignancy threshold triggers insight generation |
-| prompts/reflect_focus.py | backend/prompts/ | Prompt: "what are the 3 most salient questions based on memories?" |
-| prompts/reflect_insights.py | backend/prompts/ | Prompt: "what 5 insights can be inferred from these memories?" |
-| prompts/determine_sector.py | backend/prompts/ | 3-level decision: sector selection |
-| prompts/determine_arena.py | backend/prompts/ | 3-level decision: arena selection |
-| prompts/determine_object.py | backend/prompts/ | 3-level decision: object selection |
-| agents/relationships.py | backend/agents/ | In-memory relationship tracker (who has talked to whom, topic tags) |
-| frontend/src/components/BuildingOverlay.tsx | frontend/src/components/ | PixiJS layer that renders wall lines over TileMap |
+| Component | Status | Change Summary |
+|-----------|--------|----------------|
+| `MapCanvas.tsx` | MODIFIED | Add async asset gate; split TileMap into background/foreground wrappers |
+| `TileMap.tsx` | REPLACED | Delete; new `TiledMapRenderer.tsx` uses pixi-tiledmap |
+| `AgentSprite.tsx` | MODIFIED | Replace Graphics circle with `AnimatedSprite`; add direction state ref |
+| `simulationStore.ts` | UNCHANGED | Position protocol identical |
+| `useWebSocket.ts` | UNCHANGED | Backend message format unchanged |
+| `types/index.ts` | MODIFIED (minor) | Add optional `facing` field to `AgentState` for future use |
+| `useAssets.ts` | NEW | PixiJS Assets.loadBundle for tilemap + sprite atlases; module-level sheet cache |
+| `TiledMapRenderer.tsx` | NEW | pixi-tiledmap container split into background/foreground props |
+| Layout, ActivityFeed, BottomBar, AgentInspector | MODIFIED (minor) | CSS/font changes for pixel-art aesthetic |
+| Backend `world.py` / `town.json` | REGENERATED | Re-export from new Tiled map; same JSON schema |
 
 ---
 
-## Integration Points (Detailed)
+## Data Flow Changes
 
-### 1. Agent OOP Refactor: What Actually Changes
+### Tilemap Rendering Flow
 
-The current split is AgentConfig (static Pydantic) + AgentState (mutable dataclass),
-both held in dicts inside SimulationEngine. The v1.1 "Agent class" consolidates these
-without changing the external interface that routers and WebSocket use.
-
-**Integration boundary:** SimulationEngine._agent_states dict changes from
-dict[str, AgentState] to dict[str, Agent]. Everything that currently calls
-state.coord, state.path, state.current_activity, state.config, state.schedule
-must be updated to use the new unified Agent object.
-
-**Callers that touch _agent_states or state:**
-
-- engine._agent_step() -- primary consumer, reads and mutates state fields
-- engine._movement_loop() -- reads state.path, writes state.coord
-- engine._emit_agent_update() -- reads state.coord, state.current_activity
-- engine.inject_event() -- reads state.path, clears it
-- engine.get_snapshot() -- reads state.coord, state.current_activity
-- engine.initialize() -- creates AgentState instances
-- converse.run_conversation() -- receives state.config.scratch and state.schedule as args (passed by value, no cascade refactor needed)
-
-**Refactor scope:** Contained to engine.py + new Agent class definition in a new file
-backend/agents/agent.py. No router or WebSocket schema changes.
-
-**Recommended Agent class structure:**
-
-```python
-class Agent:
-    # Static (from AgentConfig JSON)
-    name: str
-    config: AgentConfig        # kept as sub-object, not flattened
-
-    # Runtime (was AgentState fields)
-    coord: tuple[int, int]
-    path: list[tuple[int, int]]
-    current_activity: str
-    schedule: list[ScheduleEntry]
-
-    # New in v1.1
-    reflection_poignancy: int  # accumulated; reset to 0 after reflection fires
-    relationships: dict[str, str]  # agent_name -> relationship_note
+**Current:**
+```
+town.json (static import) → computeSectorBounds() at module load
+                          → Graphics API draw callback (stable, empty deps)
+                          → PixiJS renders colored rects + text labels
 ```
 
-Cognition functions (perceive, decide_action, attempt_conversation, etc.) keep their
-current function signatures -- they accept individual fields as arguments, not the Agent
-object. This avoids a cascade refactor across all cognition modules.
-
-### 2. Building Class: What It Actually Adds
-
-The reference implementation has no separate Building class -- buildings are groups of
-tiles with a shared sector address. The Maze.address_tiles dict already indexes
-sector -> set of tile coords.
-
-The v1.1 "Building class" is primarily for providing wall geometry to the frontend.
-
-**Data flow for building walls -- recommended approach (Option B, frontend-only):**
-
-The collision tile data is already in town.json. The frontend derives wall lines by
-detecting sector boundary tiles (tiles whose neighbor on any of the 4 cardinal directions
-is either a collision tile or a different sector). This is pure frontend geometry computed
-once at module load, matching the pattern of computeSectorBounds() in TileMap.tsx.
-
-BuildingOverlay.tsx does the computation at module load, draws wall line segments via
-g.moveTo / g.lineTo / g.stroke(). Zero backend changes required.
-
-If sector interiors need explicit wall metadata later, add a walls key to town.json at
-that point -- this is a one-time map authoring task, not an architecture change.
-
-### 3. Event Class: What It Actually Adds
-
-Currently events are stored directly as add_memory() calls with memory_type="event".
-The Tile._events dict exists in world.py but inject_event() bypasses it entirely -- events
-go straight to ChromaDB without touching the tile grid.
-
-**What an Event class buys for v1.1:**
-- Source tagging: "user_inject" vs "conversation" vs "reflection"
-- Expiry: events fade from Tile._events after N ticks
-- Tile-based event display on the frontend (future)
-
-**Recommended Event schema to add to schemas.py:**
-
-```python
-class Event(BaseModel):
-    text: str
-    source: Literal["user_inject", "conversation", "observation", "reflection"]
-    importance: int              # 1-10
-    created_at: float
-    expires_at: float | None     # None = permanent; set for N-tick fade
-    target: str | None           # None = tile-based; agent name for whisper
+**Target:**
+```
+town.tmj (runtime fetch via Assets.loadBundle)
+    → pixi-tiledmap loader resolves all tileset PNGs in parallel
+    → returns { container } with one child per Tiled layer
+    → split children by layer name:
+         backgroundContainer: layers 0-9 (rendered below agents)
+         foregroundContainer: Foreground L1, Foreground L2 (rendered above agents)
+    → metadata/invisible layers (Collisions, Arena Blocks, etc.) are not rendered
+      because Tiled marks them visible: false — pixi-tiledmap respects this flag
 ```
 
-inject_event() in engine.py writes the Event to both Tile._events (for perception) and
-ChromaDB (for memory retrieval). The perception scan in perceive.py already reads
-Tile._events -- so injected events will surface in nearby_events for the first time.
+The key change: tilemap is now a runtime async asset load, not a synchronous static import. This requires a loading state in MapCanvas before any PixiJS scene tree renders.
 
-### 4. Three-Level Decision: What Changes in decide.py
+### Agent Rendering Flow
 
-Currently decide_action() asks the LLM for a sector name in a single call. The reference
-_determine_action() makes three sequential LLM calls: sector -> arena -> object.
-
-**Integration in existing code:**
-
-The decide_action() function signature stays the same (returns AgentAction). Internally:
-- Call 1: determine_sector prompt -> sector name from agent's known sectors
-- Call 2: determine_arena prompt -> arena within that sector from agent_spatial.tree
-- Call 3: determine_object prompt -> object within that arena from agent_spatial.tree
-- Construct destination as "sector:arena" for Maze.resolve_destination()
-
-Maze.resolve_destination() currently only handles sector-level strings (key = world:sector).
-It needs to also accept arena-level strings (key = world:sector:arena). The address index
-already supports this -- Maze.address_tiles is indexed at both "world:sector" and
-"world:sector:arena" levels via Tile.get_addresses().
-
-**LLM call budget change:** +2 calls per decide tick per agent. For 8 agents this adds
-up to 16 additional LLM calls per tick -- the key cost driver for the optimization work.
-
-### 5. Reflection System: New Module
-
-The reference reflect() method fires when status["poignancy"] exceeds poignancy_max
-(typically 150). In v1.0, poignancy is not tracked at all.
-
-**Integration points:**
-
-1. PerceptionResult gets a new field poignancy_delta: int. perceive() returns a delta
-   based on a heuristic: non-idle event = +1, conversation event = +2. No LLM call.
-
-2. reflect.py new module:
-   - Input: agent_name, simulation_id, agent_scratch
-   - Retrieves top N recent memories via retrieve_memories()
-   - Calls reflect_focus prompt -> 3 salient questions (1 LLM call)
-   - For each question, retrieves focused memories and calls reflect_insights prompt (3 LLM calls)
-   - Stores each insight as add_memory(memory_type="thought", importance=scored)
-   - Returns (does not mutate agent directly)
-
-3. _agent_step() adds after perceive():
-   ```python
-   agent.reflection_poignancy += perception.poignancy_delta
-   if agent.reflection_poignancy >= POIGNANCY_THRESHOLD:
-       asyncio.create_task(reflect(agent.name, simulation_id, agent.config.scratch))
-       agent.reflection_poignancy = 0
-   ```
-
-   Reflection fires as a background task to avoid blocking the tick. Thought memories
-   are available for the next tick's memory retrieval.
-
-**POIGNANCY_THRESHOLD:** Start at 150 (reference value). Tune down if reflection never
-fires in practice with cheap models that assign low importance scores.
-
-### 6. Relationship Tracking: New Module
-
-The reference tracks chats per agent and uses them during reflection. In v1.0, relationship
-state is implicit in ChromaDB memories only.
-
-**Recommended structure:**
-
-```python
-# backend/agents/relationships.py
-class RelationshipTracker:
-    _pairs: dict[frozenset[str], list[str]]  # pair -> list of conversation summaries
-
-    def record(self, agent_a: str, agent_b: str, summary: str) -> None: ...
-    def get_history(self, agent_a: str, agent_b: str) -> list[str]: ...
+**Current:**
+```
+AgentState.position {x, y}
+  → useTick lerp → containerRef.x, containerRef.y
+  → Graphics circle + Text labels (name, activity)
 ```
 
-**Wiring:** RelationshipTracker instance created in main.py lifespan, stored on app.state,
-passed to SimulationEngine constructor (same pattern as broadcast_callback). Engine passes
-it to converse.run_conversation() after conversations complete.
+**Target:**
+```
+AgentState.position {x, y}
+  → useTick lerp → containerRef.x, containerRef.y
+  → derive facing direction from lerp delta (no backend change)
+  → AnimatedSprite.textures = sheet.animations[`${facing}-walk`] when moving
+  → AnimatedSprite.textures = [sheet.textures[facing]] when idle
+  → AnimatedSprite.play() / .stop() per frame
+  + Text labels for name/activity (unchanged position logic)
+```
 
-### 7. Building Walls Rendering: Frontend Only
+Direction is derived in `useTick` by comparing lerp current position to target. If `|target.x - current.x| >= |target.y - current.y|`, the dominant axis determines `left`/`right`; otherwise `up`/`down`. If delta magnitude < 0.5px, agent is idle.
 
-**Current state:** TileMap.tsx draws colored rectangles per sector bounding box. No wall
-lines exist.
+### Position Protocol (Unchanged)
 
-**Target state:** Each sector gets a visible border drawn as a line stroke over the
-background fill. Agents inside a building appear to be within walls.
+Backend → WebSocket `agent_update` → `{ name, coord: [tile_x, tile_y], activity }` → `updateAgentPosition(name, coord, activity)` → `position: { x: coord[0] * 32, y: coord[1] * 32 }`.
 
-**BuildingOverlay.tsx approach:**
+No backend changes required for the pixel-art upgrade.
+
+---
+
+## Integration Point 1: pixi-tiledmap
+
+### What pixi-tiledmap v2 Does
+
+pixi-tiledmap v2.2.0 (released April 2026) is a PixiJS v8 `Assets` extension with a built-in Tiled JSON + TMX XML parser. Register it once at app init:
 
 ```typescript
-// Computed once at module load from town.json
-function computeWallLines(): WallSegment[] {
-  // For each sector, walk the perimeter tiles
-  // Return {x1, y1, x2, y2} segments forming building borders
-}
+import { extensions } from 'pixi.js';
+import { tiledMapLoader } from 'pixi-tiledmap';
+extensions.add(tiledMapLoader);
+```
 
-export function BuildingOverlay() {
-  const drawWalls = useCallback((g: PixiGraphics) => {
-    g.clear();
-    for (const seg of WALL_LINES) {
-      g.moveTo(seg.x1, seg.y1);
-      g.lineTo(seg.x2, seg.y2);
-    }
-    g.stroke({ color: 0x555544, width: 2 });
-  }, []);  // empty deps -- wall lines are static
-  return <pixiGraphics draw={drawWalls} />;
+Then load:
+
+```typescript
+const { container } = await Assets.load('assets/tilemap/town.tmj');
+```
+
+It returns a PixiJS `Container` with one child per visible Tiled layer. All tileset images referenced in the TMJ are resolved in parallel automatically — no manual tileset registration needed. Supports embedded tilesets (image paths relative in the JSON) and external `.tsj`/`.tsx` files. It respects the Tiled `visible: false` flag, so metadata layers (Collisions, Arena Blocks, Sector Blocks, etc.) are excluded from the container automatically.
+
+### Layer Splitting for Agent Z-Depth
+
+Agents must render between the base map layers and the foreground (trees, roofs, overhangs). Split the pixi-tiledmap container by layer name:
+
+```typescript
+const { container } = await Assets.load('assets/tilemap/town.tmj');
+const bgContainer = new Container();
+const fgContainer = new Container();
+
+for (const child of container.children) {
+  const name = child.label; // pixi-tiledmap sets label to the Tiled layer name
+  if (name === 'Foreground L1' || name === 'Foreground L2') {
+    fgContainer.addChild(child);
+  } else {
+    bgContainer.addChild(child);
+  }
 }
 ```
 
-**Integration:** Add <BuildingOverlay /> between <TileMap /> and agent sprites in
-MapCanvas.tsx. Rendered in PixiJS scene graph order: TileMap -> BuildingOverlay -> agents.
+Store `bgContainer` and `fgContainer` at module scope (not in React state). `TiledMapRenderer` receives a `layer="background"|"foreground"` prop and renders the corresponding container via a `useEffect` that calls `pixiParentRef.current.addChild(...)`.
 
-### 8. LLM Call Optimization: Budget and Levers
+### Tileset Constraints
 
-Current per-agent per-tick worst case (full conversation):
-- attempt_conversation(): 1 call
-- run_conversation(): up to 8 turns + 2 importance + 2 schedule_revise = 12 calls
-- Total: 13 calls per agent per conversation tick
+The reference tilemap has 18 embedded tilesets, some very large (interiors_pt1: 512×10016px, ~2MB GPU). WebGL guarantees minimum 8 texture units per draw call; most desktop browsers support 16-32. pixi-tiledmap uses `CompositeTilemap` internally to batch across texture unit limits. For the reference map this works on desktop hardware. A new Agent Town-specific map with fewer/smaller interior tilesets will have lower memory footprint.
 
-After 3-level decision (no conversation):
-- decide_action() three-level: 3 calls
-
-**Optimization levers for v1.1:**
-
-1. Activity heuristic gate before attempt_conversation() LLM call: if both agents are
-   in "working" or "sleeping" activities, return False without an LLM call. Saves 1 call
-   per nearby pair per tick.
-
-2. Repetition detection in run_conversation(): if the last 2 turns from the same speaker
-   have very similar text (local string similarity check, no LLM), force end_conversation=True.
-   Reduces average conversation length from MAX_TURNS toward 2-3 turns.
-
-3. cheap_model parameter in complete_structured(): pass a cheaper model for high-frequency
-   low-stakes calls (importance_score, conversation_turn). Use configured model for
-   reflect_insights and three-level decision calls.
-
-4. Reduce TICK_INTERVAL from 30s to 10s default: asyncio.TaskGroup already runs all agents
-   concurrently so the bottleneck is the slowest agent LLM response, not the number of
-   agents. With GPT-4o-mini or Haiku, p95 LLM latency is well under 10s.
+**Size concern for the new map:** The reference `tilemap.json` is 3.5MB. For the new Agent Town map, export from Tiled with tilesets embedded (`Embed Tilesets` option). A 100×100 map with 8-10 tilesets will be roughly 0.5-1.5MB — acceptable as a runtime fetch with a loading overlay.
 
 ---
 
-## Recommended Build Order
+## Integration Point 2: Sprite Sheet Atlas
 
-Dependencies determine order. Each step is independently buildable and testable.
+### Reference Format vs PixiJS Format
 
-### Step 1: Agent OOP Refactor (Foundation)
+The reference `sprite.json` is generated by Atlas Packer Gamma (Phaser format). It uses a `frames` **array**. PixiJS Assets requires `frames` as a **dictionary** plus an `animations` dictionary. This is a one-time conversion, not a runtime concern.
 
-Create backend/agents/agent.py with Agent class consolidating AgentConfig + AgentState
-plus the new reflection_poignancy field. Update SimulationEngine._agent_states.
-Update all field accesses in engine.py.
+**Reference format (Phaser atlas):**
+```json
+{
+  "frames": [
+    { "filename": "down-walk.000", "frame": { "w": 32, "h": 32, "x": 0, "y": 0 } }
+  ]
+}
+```
 
-No behavior change. All existing tests pass.
+**PixiJS Assets format (`ISpritesheetData`):**
+```json
+{
+  "frames": {
+    "down-walk.000": { "frame": { "x": 0, "y": 0, "w": 32, "h": 32 } },
+    "down-walk.001": { "frame": { "x": 32, "y": 0, "w": 32, "h": 32 } },
+    "down-walk.002": { "frame": { "x": 64, "y": 0, "w": 32, "h": 32 } },
+    "down-walk.003": { "frame": { "x": 32, "y": 0, "w": 32, "h": 32 } },
+    "down":          { "frame": { "x": 32, "y": 0, "w": 32, "h": 32 } }
+  },
+  "animations": {
+    "down-walk":  ["down-walk.000", "down-walk.001", "down-walk.002", "down-walk.003"],
+    "left-walk":  ["left-walk.000", "left-walk.001", "left-walk.002", "left-walk.003"],
+    "right-walk": ["right-walk.000", "right-walk.001", "right-walk.002", "right-walk.003"],
+    "up-walk":    ["up-walk.000",   "up-walk.001",   "up-walk.002",   "up-walk.003"],
+    "down": ["down"], "left": ["left"], "right": ["right"], "up": ["up"]
+  },
+  "meta": { "image": "texture.png", "size": { "w": 96, "h": 128 }, "scale": 1 }
+}
+```
 
-### Step 2: Reflection System (Requires Step 1 for reflection_poignancy)
+Write a Python conversion script, output the PixiJS-compatible `sprite.json` once, commit to `frontend/public/assets/agents/`. Frame coordinates come directly from the inspected reference (96×128px texture, 32×32 tiles, 3-column layout: columns = walk-000, idle, walk-002).
 
-Add reflect.py, add poignancy_delta to PerceptionResult, add reflection check in
-_agent_step(), add POIGNANCY_THRESHOLD, add reflect_focus.py and reflect_insights.py prompts.
+### Per-Agent Loading Pattern
 
-No change to movement or decisions. Adds new "thought" memories visible in activity feed.
+All agents share identical frame layout — only the texture PNG differs. Load each agent's atlas separately using `data.imageFilename` override:
 
-### Step 3: Three-Level Decision (Requires Step 1 for Agent.config.spatial access)
+```typescript
+// In useAssets.ts — run before PixiJS scene mounts
+for (const agentName of AGENT_NAMES) {
+  Assets.add({
+    alias: `agent-${agentName}`,
+    src: 'assets/agents/sprite.json',          // shared layout
+    data: { imageFilename: `assets/agents/${agentName}/texture.png` }
+  });
+}
+const sheets = await Assets.loadBundle('agents');
+// sheets is Record<alias, Spritesheet>
+```
 
-Replace decide_action() internals with 3-level sequential LLM calls.
-Add determine_sector.py, determine_arena.py, determine_object.py prompts.
-Update Maze.resolve_destination() to accept "sector:arena" strings.
+After loading, cache sheets at module scope:
 
-Behavior change: agents navigate to arenas within sectors, not just sector-level.
+```typescript
+const sheetCache = new Map<string, Spritesheet>();
+for (const [alias, sheet] of Object.entries(sheets)) {
+  const agentName = alias.replace('agent-', '');
+  sheetCache.set(agentName, sheet);
+}
+```
 
-### Step 4: Building Walls + Visual Overhaul (No backend dependencies, parallel with 2-3)
+### AnimatedSprite Direction Logic in AgentSprite.tsx
 
-Add BuildingOverlay.tsx. Improve TileMap.tsx label sizes and font weights.
-Tune AgentSprite.tsx text sizes for readability at default zoom.
+```typescript
+const animSpriteRef = useRef<AnimatedSprite | null>(null);
+const facingRef = useRef<'down' | 'left' | 'right' | 'up'>('down');
 
-Pure frontend. Can be developed while Steps 2-3 are in progress.
+useTick(() => {
+  const agent = useSimulationStore.getState().agents[agentId];
+  if (!agent || !containerRef.current || !animSpriteRef.current) return;
 
-### Step 5: Relationship Tracking (Requires Step 2 -- reflection uses relationship history)
+  // Lerp (unchanged)
+  const cur = currentPosRef.current;
+  const target = agent.position;
+  cur.x += (target.x - cur.x) * LERP;
+  cur.y += (target.y - cur.y) * LERP;
+  containerRef.current.x = cur.x;
+  containerRef.current.y = cur.y;
 
-Add backend/agents/relationships.py RelationshipTracker.
-Wire into converse.run_conversation() and reflect.py.
-Thread tracker instance through SimulationEngine constructor.
+  // Direction + animation
+  const dx = target.x - cur.x;
+  const dy = target.y - cur.y;
+  const moving = Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5;
 
-### Step 6: Conversation Improvements + Tick Optimization (Requires Steps 1-3)
+  if (moving) {
+    const newFacing = Math.abs(dx) >= Math.abs(dy)
+      ? (dx > 0 ? 'right' : 'left')
+      : (dy > 0 ? 'down' : 'up');
 
-Add activity heuristic gate before attempt_conversation() LLM call.
-Add repetition detection to run_conversation().
-Add cheap_model routing in gateway.complete_structured().
-Reduce TICK_INTERVAL default and make it configurable.
+    if (newFacing !== facingRef.current) {
+      facingRef.current = newFacing;
+      const sheet = getAgentSheet(agentId);
+      if (sheet) {
+        animSpriteRef.current.textures = sheet.animations[`${newFacing}-walk`];
+        animSpriteRef.current.play();
+      }
+    } else if (!animSpriteRef.current.playing) {
+      animSpriteRef.current.play();
+    }
+  } else if (animSpriteRef.current.playing) {
+    animSpriteRef.current.stop();
+    const sheet = getAgentSheet(agentId);
+    if (sheet) {
+      animSpriteRef.current.textures = [sheet.textures[facingRef.current]];
+    }
+  }
+});
+```
+
+`getAgentSheet` reads from the module-level `sheetCache` — synchronous, O(1), no async in the hot path.
 
 ---
 
-## Component Boundary Table
+## Integration Point 3: New Town Map in Tiled
 
-| Boundary | Communication | v1.1 Change? |
-|----------|--------------|--------------|
-| engine.py <-> cognition/ | Function calls, typed args | Add poignancy_delta to PerceptionResult; reflection call added |
-| engine.py <-> memory/ | add_memory(), reset_simulation() | No change |
-| cognition/reflect.py <-> memory/ | retrieve_memories(), add_memory() | New caller, existing functions |
-| cognition/converse.py <-> relationships.py | tracker.record() | New call added after each conversation |
-| engine.py <-> simulation/world.py | maze.find_path(), maze.resolve_destination() | resolve_destination() accepts "sector:arena" strings |
-| Backend <-> Frontend | WebSocket JSON (WSMessage) | No schema changes; building walls go via town.json static import |
-| MapCanvas.tsx <-> BuildingOverlay.tsx | Parent renders child in PixiJS tree | New component added |
-| TileMap.tsx <-> town.json | Static import | May add walls key later; no change in Step 4 |
-| gateway.py <-> all cognition | complete_structured() | Add cheap_model optional param in Step 6 |
+### What Needs to Be Rebuilt
+
+The reference map is "The Ville" — a Chinese university town (professors' offices, bar, dormitories). Agent Town needs different locations: stock exchange, wedding hall, park, homes for 8 named agents, cafe, office building. The reference map layout cannot be reused, but the tileset PNGs can be copied directly.
+
+**Map authoring spec for Agent Town:**
+- Grid: 100×100 tiles at 32px (matches existing town.json and coordinate system)
+- Export format: Tiled JSON (`.tmj`), tilesets embedded
+- Layer structure: match the reference 10 visible + metadata layers (backend expects Sector/Arena/Collision layer names for map parsing)
+- Sector names: must match the existing `backend/data/map/buildings.json` keys
+
+### Backend Map Regeneration
+
+After designing the new map in Tiled, regenerate `backend/data/map/town.json` from the TMJ:
+1. Parse the Sector Blocks and Arena Blocks layers (invisible metadata layers) to extract tile addresses
+2. Parse the Collisions layer to extract collision flags
+3. Output in the existing town.json schema: `{ tiles: [{ coord, address, collision }] }`
+
+The existing backend `world.py` `Tile` and `Maze` classes work against town.json — they do not need to change. The regeneration is a one-time Python script task.
+
+---
+
+## Recommended File Structure Changes
+
+```
+frontend/
+├── public/
+│   └── assets/                        ← NEW: runtime-fetched assets (not bundled)
+│       ├── tilemap/
+│       │   ├── town.tmj                ← New Tiled JSON (Agent Town map)
+│       │   ├── CuteRPG_Field_B.png
+│       │   ├── CuteRPG_Field_C.png
+│       │   ├── CuteRPG_Village_B.png
+│       │   ├── CuteRPG_Harbor_C.png
+│       │   ├── CuteRPG_Forest_B.png    (and other CuteRPG variants if used)
+│       │   ├── Room_Builder_32x32.png
+│       │   ├── interiors_pt1.png ... interiors_pt5.png
+│       │   └── blocks_1.png
+│       └── agents/
+│           ├── sprite.json             ← PixiJS-format atlas (converted from reference)
+│           ├── alice/texture.png
+│           ├── bob/texture.png
+│           ├── carla/texture.png
+│           ├── david/texture.png
+│           ├── emma/texture.png
+│           └── [remaining agents]
+├── src/
+│   ├── components/
+│   │   ├── MapCanvas.tsx               ← MODIFIED: add asset gate
+│   │   ├── TiledMapRenderer.tsx        ← NEW: replaces TileMap.tsx
+│   │   ├── AgentSprite.tsx             ← MODIFIED: AnimatedSprite
+│   │   └── [others unchanged]
+│   ├── hooks/
+│   │   ├── useWebSocket.ts             ← UNCHANGED
+│   │   └── useAssets.ts               ← NEW: loadBundle + sheetCache
+│   ├── data/
+│   │   └── town.json                   ← REGENERATED from new Tiled map
+│   └── types/
+│       └── index.ts                    ← MINOR: optional facing field
+```
+
+**Why `public/assets/` not `src/data/`:** Tileset PNGs total 10-30MB. Vite would reject or inline them into the JS bundle. `public/` is served as static files, referenced by URL at runtime. PixiJS Assets caches them in GPU memory after first load.
+
+**Why `sprite.json` is shared:** All agent sprites use identical frame coordinates at identical pixel positions. Per-agent atlases reference the shared JSON but each supply their own PNG path via `data.imageFilename`.
+
+---
+
+## Architectural Patterns
+
+### Pattern 1: Assets-First Gate in MapCanvas
+
+**What:** MapCanvas renders a loading overlay until all assets resolve, then mounts the full PixiJS scene tree.
+
+**When to use:** Required. @pixi/react children cannot render before their textures exist. Mounting `TiledMapRenderer` or `AgentSprite` before their assets are loaded throws in PixiJS v8.
+
+**Implementation sketch:**
+
+```typescript
+function MapCanvas() {
+  const [assetsReady, setAssetsReady] = useState(false);
+
+  useEffect(() => {
+    loadAllGameAssets().then(() => setAssetsReady(true));
+  }, []);
+
+  if (!assetsReady) {
+    return <div style={{ ...mapStyles }}>Loading map...</div>;
+  }
+
+  return (
+    <div ref={containerRef} style={...} onPointerDown={...} ...>
+      <Application background={BG_COLOR} resizeTo={containerRef}>
+        <pixiContainer x={offsetX} y={offsetY} scale={scale}>
+          <TiledMapRenderer layer="background" />
+          {agentIds.map((id, i) => (
+            <AgentSprite key={id} agentId={id} colorIndex={i} onSelect={handleSelect} />
+          ))}
+          <TiledMapRenderer layer="foreground" />
+        </pixiContainer>
+      </Application>
+    </div>
+  );
+}
+```
+
+### Pattern 2: Module-Level Sheet Cache
+
+**What:** Agent sprite sheets loaded once into a `Map<agentName, Spritesheet>` at module scope, not in component state or Zustand.
+
+**Why:** `useTick` fires 60 times/second. Storing sheets in Zustand or React state would cause re-renders or stale closures. Module-level Map is synchronous, O(1), no React overhead.
+
+```typescript
+// useAssets.ts
+const sheetCache = new Map<string, Spritesheet>();
+
+export async function loadAllGameAssets(): Promise<void> {
+  extensions.add(tiledMapLoader);
+
+  // Register tilemap
+  Assets.add({ alias: 'tilemap', src: '/assets/tilemap/town.tmj' });
+
+  // Register all agent atlases
+  for (const name of AGENT_NAMES) {
+    Assets.add({
+      alias: `agent-${name}`,
+      src: '/assets/agents/sprite.json',
+      data: { imageFilename: `/assets/agents/${name}/texture.png` }
+    });
+  }
+
+  // Load all in parallel
+  await Promise.all([
+    Assets.load('tilemap').then(({ container }) => {
+      splitTiledContainer(container); // populates bgContainer / fgContainer module vars
+    }),
+    Assets.loadBundle('agents').then((sheets) => {
+      for (const [alias, sheet] of Object.entries(sheets)) {
+        sheetCache.set(alias.replace('agent-', ''), sheet as Spritesheet);
+      }
+    }),
+  ]);
+}
+
+export function getAgentSheet(name: string): Spritesheet | undefined {
+  return sheetCache.get(name);
+}
+```
+
+### Pattern 3: Layer Name-Based Split (Not Index-Based)
+
+**What:** Split pixi-tiledmap container children by checking `child.label` (the Tiled layer name), not by array index.
+
+**Why:** If the Tiled map is re-exported and layer order shifts, index-based splitting silently produces wrong z-ordering. Name-based is stable across re-exports.
+
+---
+
+## Build Order
+
+Build in this sequence — each step unblocks the next.
+
+**Step 1 — Asset pipeline (no code, unblocks all render work)**
+- Copy CuteRPG tileset PNGs from reference to `frontend/public/assets/tilemap/`
+- Run conversion script: reference `sprite.json` (Phaser format) → PixiJS `ISpritesheetData` format
+- Assign one agent texture PNG per named agent (8 agents)
+- Result: all assets are in place and fetchable from the Vite dev server
+
+**Step 2 — New town map in Tiled (critical path, longest task)**
+- Author Agent Town-specific map in Tiled editor using CuteRPG tilesets
+- Must include: stock exchange, wedding hall, park, homes (8), cafe, office + metadata layers (Sector/Arena/Collision blocks)
+- Export as `town.tmj` to `frontend/public/assets/tilemap/`
+- Write Python script to parse TMJ metadata layers → regenerate `backend/data/map/town.json`
+- Verify sector/arena addresses match the backend 3-level scheme and existing agent JSON files
+
+**Step 3 — `useAssets.ts` hook (depends on Step 1 assets being present)**
+- Register pixi-tiledmap extension
+- Implement `loadAllGameAssets()` with parallel bundle loading
+- Implement `getAgentSheet(name)` from module-level cache
+- Implement `getBgContainer()` / `getFgContainer()` for TiledMapRenderer
+
+**Step 4 — `TiledMapRenderer.tsx` (depends on Step 3)**
+- Receive `layer="background"|"foreground"` prop
+- In `useEffect`, call `pixiParentRef.current.addChild(getBgContainer())` or `getFgContainer()`
+- Handles the fact that pixi-tiledmap containers are imperative, not declarative
+
+**Step 5 — `MapCanvas.tsx` modifications (depends on Steps 3-4)**
+- Add assets-ready gate with loading overlay
+- Replace `<TileMap />` with `<TiledMapRenderer layer="background" />` and `<TiledMapRenderer layer="foreground" />`
+- Agent sprites render between the two TiledMapRenderer components
+
+**Step 6 — `AgentSprite.tsx` modifications (depends on Step 3 for sheet access)**
+- Replace `drawCircle` Graphics with `AnimatedSprite` using `getAgentSheet(agentId).animations`
+- Add `facingRef`, direction detection logic in `useTick`
+- Add texture swap on direction change
+- Keep name/activity Text labels unchanged (repositioned relative to sprite center)
+
+**Step 7 — UI polish (no render dependencies, can parallel with Steps 3-6)**
+- Update sidebar/feed typography to harmonize with pixel-art palette
+- Adjust font choices, border-radius, color values to match map aesthetic
+
+**Critical path:** Step 2 (Tiled map authoring) is the longest task and is the prerequisite for generating the backend map data. Steps 3-6 can be developed with placeholder assets (even a simple 10×10 test map) and integrated once the real map is ready.
 
 ---
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Flattening AgentConfig into Agent
+### Anti-Pattern 1: Static Import of the New Map JSON
 
-**What people do:** Copy all AgentConfig fields directly onto the Agent class,
-eliminating the config sub-object.
+**What people do:** `import mapData from '../data/town.tmj'` — treat the new Tiled file like the existing town.json static import.
 
-**Why it's wrong:** loader.py returns list[AgentConfig] and the JSON schema is stable.
-Existing tests and the WebSocket snapshot serialize config.scratch.innate etc. Flattening
-requires touching every reference throughout the codebase.
+**Why it's wrong:** The tilemap JSON with embedded tilesets will be 500KB–2MB. Vite will either reject it or inline it into the JS bundle, adding unacceptable parse time. The tileset PNGs themselves (10-30MB total) cannot be statically imported at all.
 
-**Do this instead:** Keep Agent.config: AgentConfig as a sub-object. Promote only the
-fields the engine accesses on every tick (coord, path, current_activity, schedule,
-reflection_poignancy) to the top level of Agent.
+**Do this instead:** Place everything in `frontend/public/assets/`, reference by URL, use `Assets.load` at runtime.
 
-### Anti-Pattern 2: Cascade-Refactoring Cognition Function Signatures
+### Anti-Pattern 2: Async Operations in useTick
 
-**What people do:** Change perceive(), decide_action(), attempt_conversation() to accept
-Agent objects instead of individual fields.
+**What people do:** Call `Assets.load(agentName)` inside `useTick` to lazily fetch sprite sheets.
 
-**Why it's wrong:** These functions have existing tests built against their current
-signatures. Changing them risks breaking test coverage and creates a larger diff.
+**Why it's wrong:** `useTick` fires 60 times/second. Async calls inside it create unhandled promises and potential memory leaks. PixiJS deduplicates loads, but the overhead is still unacceptable on the animation hot path.
 
-**Do this instead:** Keep cognition functions accepting individual fields. engine._agent_step()
-extracts fields from the Agent object before passing them. This is the existing pattern
-(config = state.config, config.scratch, etc.) -- extend it, do not replace it.
+**Do this instead:** All assets load before the PixiJS scene mounts (assets gate). `getAgentSheet(name)` in `useTick` is a synchronous cache read.
 
-### Anti-Pattern 3: Sending Building Wall Geometry via WebSocket
+### Anti-Pattern 3: Mounting AnimatedSprite with Empty Textures
 
-**What people do:** Add building metadata to the engine snapshot and send wall coordinates
-over the WebSocket on every new client connection.
+**What people do:** Render `AgentSprite` immediately and let it show "nothing" until the sheet arrives.
 
-**Why it's wrong:** Wall geometry is static -- it never changes during simulation. Sending
-it over WebSocket adds pointless payload. The frontend already imports town.json at build
-time for sector colors.
+**Why it's wrong:** `new AnimatedSprite([])` throws in PixiJS v8 — an empty textures array is invalid.
 
-**Do this instead:** Compute wall segments in BuildingOverlay.tsx from the already-imported
-town.json at module load time. Zero runtime cost, zero backend change.
+**Do this instead:** The assets gate ensures sheets are fully loaded before any PixiJS components mount. `AgentSprite` can assume `getAgentSheet(agentId)` returns a valid Spritesheet.
 
-### Anti-Pattern 4: Blocking the Event Loop with Reflection
+### Anti-Pattern 4: Reusing the Reference tilemap.json Directly
 
-**What people do:** Add await reflect(...) synchronously inside _agent_step() when the
-threshold is crossed, blocking that agent's task for the duration of 4-15 LLM calls.
+**What people do:** Copy the reference `tilemap.json` (The Ville — 140×100) to avoid Tiled editor work.
 
-**Why it's wrong:** Reflection takes significantly longer than a normal decide step. Running
-it inline will trigger the TICK_INTERVAL*2 timeout guard and skip the agent entirely.
+**Why it's wrong:** The reference map is designed for a Chinese university town. Its sector/arena addresses (`林氏家族的房子`, `霍布斯咖啡馆`) will not match Agent Town's backend buildings.json or agent JSON files. The map is also 140×100 vs Agent Town's 100×100 coordinate space — all agent coordinates will be out of bounds.
 
-**Do this instead:** Fire reflection as asyncio.create_task() when the threshold is
-crossed. Clear reflection_poignancy immediately. The thought memories will be available
-for the next tick's memory retrieval. This matches the reference behavior.
+**Do this instead:** Reuse the tileset PNG assets (just copy the PNG files). Author the Agent Town layout from scratch in Tiled.
 
-### Anti-Pattern 5: Growing schemas.py Without Bounds
+### Anti-Pattern 5: Index-Based Layer Splitting
 
-**What people do:** Add all new Pydantic models to schemas.py.
+**What people do:** Split pixi-tiledmap container children by position: `container.children[0..9]` = background, `container.children[10..11]` = foreground.
 
-**Why it's wrong:** schemas.py is already 183 lines with 12 models. Adding Event,
-ReflectionInsight, ThreeLevelAction, RelationshipEntry makes it unmaintainable.
+**Why it's wrong:** Re-exporting from Tiled or adding/removing layers silently shifts indices, causing wrong z-ordering with no error.
 
-**Do this instead:** Add domain-grouped files alongside schemas.py for v1.1 additions:
-backend/schemas/events.py, backend/schemas/reflection.py, backend/schemas/decision.py.
-Keep schemas.py for foundational models referenced everywhere (AgentConfig, AgentScratch,
-AgentSpatial, PerceptionResult, WSMessage, Memory, ScheduleEntry). Additive -- no refactor
-of existing imports required.
+**Do this instead:** Split by `child.label` matching the Tiled layer name string. Names are stable across re-exports.
+
+### Anti-Pattern 6: Storing Spritesheet References in Zustand
+
+**What people do:** Add `agentSheets: Record<string, Spritesheet>` to `simulationStore` so components can subscribe.
+
+**Why it's wrong:** Spritesheet objects are large non-serializable GPU objects. Storing them in Zustand triggers re-renders on every subscriber component when the store updates for any reason (agent position, feed updates, etc.).
+
+**Do this instead:** Module-level `Map<string, Spritesheet>` in `useAssets.ts`. Export a `getAgentSheet(name)` accessor. Zero React involvement.
 
 ---
 
-## Modified Data Flow After v1.1
+## Scaling Considerations
 
-### Agent Step
+This is a single-user simulation browser app. The scaling concerns are GPU memory and load time, not server throughput.
 
-```
-_agent_step(agent: Agent)
-    all_agents_view = snapshot of all agents' coords and activities
+| Concern | At 8 agents (target) | At 25 agents (stretch) |
+|---------|---------------------|------------------------|
+| AnimatedSprite GPU draw calls | 8 sprites, trivial | 25 — still well within WebGL budget |
+| Tileset texture memory | ~15-30MB GPU (CuteRPG + interiors) | Same — tilemap is fixed |
+| useTick lerp + direction logic | 8 iterations <0.1ms | 25 — still <0.5ms per frame |
+| Sprite sheet load time | 8 × 96×128px ≈ 0.3MB total | 25 × same — still negligible |
+| pixi-tiledmap layer rendering | 10 visible layers, static after load | Same |
 
-    perception = perceive(agent.coord, agent.name, maze, all_agents_view)
-    -> PerceptionResult{nearby_agents, nearby_events, location, poignancy_delta}  [NEW field]
-
-    agent.reflection_poignancy += perception.poignancy_delta
-    if agent.reflection_poignancy >= POIGNANCY_THRESHOLD:
-        asyncio.create_task(reflect(...))   [NEW -- background task]
-        agent.reflection_poignancy = 0
-
-    if agent.path: return  (movement loop handles walking)
-
-    if perception.nearby_agents:
-        if _passes_activity_heuristic(agent, other):   [NEW gate]
-            should_talk = await attempt_conversation(...)
-            if should_talk:
-                result = await run_conversation(...)
-                tracker.record(a, b, result.summary)   [NEW]
-                return
-
-    action = await decide_action_three_level(          [MODIFIED internals]
-        ...same signature...
-    )
-    -> ThreeLevelAction{sector, arena, object, activity}
-
-    dest_coord = maze.resolve_destination("sector:arena")  [MODIFIED]
-    path = maze.find_path(agent.coord, dest_coord)
-    agent.path = path[1:]
-    agent.current_activity = action.activity
-    await _emit_agent_update(...)
-    await add_memory(...)
-```
-
-### Reflection Flow (Async Background Task)
-
-```
-asyncio.create_task(reflect(agent_name, sim_id, agent_scratch))
-    memories = retrieve_memories(sim_id, agent_name, focus_query, top_k=20)
-    questions = complete_structured(reflect_focus_prompt, ReflectionFocus)  -- 1 LLM call
-    for question in questions[:3]:
-        focused = retrieve_memories(sim_id, agent_name, question, top_k=5)
-        insights = complete_structured(reflect_insights_prompt, ReflectionInsights)  -- 1 LLM call
-        for insight in insights[:5]:
-            importance = score_importance(...)
-            add_memory(sim_id, agent_name, insight, "thought", importance)
-    -- Total: 3-6 LLM calls, all async/non-blocking
-```
-
----
-
-## Scalability Considerations
-
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| 5-10 agents (current) | asyncio.TaskGroup concurrent tick is correct; no changes needed |
-| 15-25 agents | Cheap model routing (Step 6) becomes necessary; reflection background tasks accumulate -- add semaphore to bound concurrent reflection tasks |
-| 25+ agents | EphemeralClient ChromaDB starts to strain; switch to PersistentClient with file-backed store for better memory management |
-
-These are not v1.1 concerns -- the current single-user 5-10 agent scope is well within
-the existing architecture's capacity.
+Initial asset load time (~3-5s for all tileset PNGs) is the only UX concern — mitigated by the assets-ready loading overlay before the PixiJS scene mounts.
 
 ---
 
 ## Sources
 
-- Full read: backend/simulation/engine.py, world.py, agents/cognition/*, agents/memory/*, gateway.py, schemas.py, routers/ws.py
-- Full read: frontend/src/components/*, frontend/src/store/simulationStore.ts, frontend/src/types/index.ts
-- Reference implementation (direct read): GenerativeAgentsCN/generative_agents/modules/agent.py -- reflect(), _determine_action(), percept(), make_plan() methods
-- Reference implementation (direct read): GenerativeAgentsCN/generative_agents/modules/maze.py -- Tile._events, update_events(), add_event()
-- CLAUDE.md stack decisions: confirmed all technology choices (LiteLLM, instructor, FastAPI, PixiJS v8, @pixi/react v8, Zustand) stay unchanged in v1.1
+- pixi-tiledmap v2.2.0 README: https://github.com/riebel/pixi-tiledmap
+- pixi-tiledmap npm: https://www.npmjs.com/package/pixi-tiledmap
+- PixiJS v8 AnimatedSprite API: https://pixijs.download/dev/docs/scene.AnimatedSprite.html
+- PixiJS v8 Spritesheet API: https://pixijs.download/dev/docs/assets.Spritesheet.html
+- PixiJS v8 Assets guide: https://pixijs.com/8.x/guides/components/assets
+- @pixi/tilemap CompositeTilemap (texture unit limits): https://userland.pixijs.io/tilemap/docs/CompositeTilemap.html
+- @pixi/react v8 useTick docs: https://react.pixijs.io/hooks/useTick/
+- Reference implementation Phaser loading code: GenerativeAgentsCN/generative_agents/frontend/templates/main_script.html
+- Reference sprite.json (Phaser atlas format): GenerativeAgentsCN/generative_agents/frontend/static/assets/village/agents/sprite.json
+- Reference tilemap.json (17 layers, 18 tilesets, 140×100): GenerativeAgentsCN/generative_agents/frontend/static/assets/village/tilemap/
 
 ---
-*Architecture research for: Agent Town v1.1 OOP Refactor + Visual Polish + LLM Optimization*
-*Researched: 2026-04-10*
+
+*Architecture research for: Agent Town v1.2 Pixel-Art RPG Rendering Upgrade*
+*Researched: 2026-04-11*
