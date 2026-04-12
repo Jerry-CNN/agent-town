@@ -8,16 +8,13 @@ A web-based generative agents playground where users watch AI-powered characters
 
 Users can type any event and immediately see AI agents respond to it in a living, breathing town — the magic is watching emergent behavior unfold.
 
-## Current Milestone: v1.1 Architecture & Polish
+## Current State
 
-**Goal:** Refactor the codebase to proper OOP abstractions, fix the visual experience, and optimize LLM call patterns.
+**Shipped:** v1.0 Core (2026-04-10), v1.1 Architecture & Polish (2026-04-12)
 
-**Target features:**
-- Backend OOP refactoring — Agent class, Building/Location class, Event class with proper lifecycle
-- UI/visual overhaul — building walls, readable text, map looks like an actual town
-- LLM call optimization — 3-level decisions, conversation gating, smarter tick timing
+v1.1 delivered OOP refactoring (Agent/Building/Event classes), building walls with operating hours, 2-level LLM decision cascade with adaptive tick, conversation repetition detection, semaphore concurrency, and activity text restoration with contrast compliance.
 
-**Deferred to v1.2 (Agent Behavior):** Reflection system, relationship tracking, task state machine, perception diffing
+**Next milestone:** v1.2 Agent Behavior — reflection system, relationship tracking, task state machine, perception diffing
 
 ## Requirements
 
@@ -40,17 +37,21 @@ Users can type any event and immediately see AI agents respond to it in a living
 - [x] User configures their own LLM provider and API key — Validated in v1.0
 - [x] Fresh simulation by default — Validated in v1.0
 - [x] Real-time feed showing agent actions and conversations — Validated in v1.0
+- [x] Backend refactored to OOP: Agent/Building/Event classes with unified domain model — Validated in v1.1
+- [x] Buildings have visible walls on the map with collision; operating hours enforced — Validated in v1.1
+- [x] Text labels (agent names, activities) readable at default zoom with WCAG AA contrast — Validated in v1.1
+- [x] 2-level LLM decision cascade (sector -> arena) with per-sector gating — Validated in v1.1
+- [x] Conversation repetition detection and early termination — Validated in v1.1
+- [x] Adaptive tick interval (10s) for faster agent responsiveness — Validated in v1.1
+- [x] Semaphore-bounded concurrent LLM calls — Validated in v1.1
+- [x] Event lifecycle wired into runtime (creation, propagation tracking, expiry) — Validated in v1.1
 
 ### Active
 
-- [ ] Backend refactored to OOP: Agent class (config + state + cognition methods), Building class (walls, properties), Event class (lifecycle, propagation)
-- [ ] Buildings have visible walls on the map; agents cannot walk through them
-- [ ] Text labels (agent names, activities, sector names) are readable at default zoom
-- [ ] LLM decisions use 3-level resolution (sector → arena → object) matching reference repo
-- [ ] Conversation gating: LLM check before initiating conversations
-- [ ] Conversation termination: agents detect repetition and end conversations early
 - [ ] Reflection system: agents form higher-level insights when poignancy threshold is crossed
-- [ ] Tick timing optimized for faster agent responsiveness
+- [ ] Relationship tracking: per-pair familiarity, sentiment, last interaction
+- [ ] Task state machine: queued/active/interrupted/completed with interrupt/resume
+- [ ] Perception diffing: agents react to changes, not static scenes
 
 ### Out of Scope
 
@@ -93,11 +94,15 @@ Users can type any event and immediately see AI agents respond to it in a living
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Python backend + React frontend | Python preserves agent logic from reference repo; React handles interactive 2D rendering | -- Pending |
-| WebSocket for real-time updates | Agents act asynchronously; push updates to browser as they happen | -- Pending |
-| User-provided LLM keys | Avoids hosting costs; lets users pick their preferred provider | -- Pending |
-| Custom town map (not reuse the Ville) | Town locations should match the use cases (stock exchange, wedding hall, etc.) | -- Pending |
-| Broadcast + whisper event modes | Gives users control over how information spreads through the simulation | -- Pending |
+| Python backend + React frontend | Python preserves agent logic from reference repo; React handles interactive 2D rendering | Good |
+| WebSocket for real-time updates | Agents act asynchronously; push updates to browser as they happen | Good |
+| User-provided LLM keys | Avoids hosting costs; lets users pick their preferred provider | Good |
+| Custom town map (not reuse the Ville) | Town locations should match the use cases (stock exchange, wedding hall, etc.) | Good |
+| Broadcast + whisper event modes | Gives users control over how information spreads through the simulation | Good |
+| GPT-4o-mini as default model | Kimi K2.5 too slow; GPT-4o-mini is 1-2s with reliable JSON | Good (v1.1) |
+| 2-level cascade instead of 3-level | Sector -> arena sufficient; object-level adds cost without UX benefit | Good (v1.1) |
+| OpenRouter as default provider | Ollama unreliable with 8 agents; OpenRouter provides consistent cloud inference | Good (v1.1) |
+| heard_by whisper-only (D-09) | Broadcasts don't need propagation tracking; keeps heard_by meaningful | Good (v1.1) |
 
 ## Evolution
 
@@ -117,4 +122,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-10 after milestone v1.1 started*
+*Last updated: 2026-04-12 after v1.1 milestone shipped*
