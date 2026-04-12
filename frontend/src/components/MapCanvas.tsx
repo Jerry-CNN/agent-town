@@ -7,10 +7,15 @@
  */
 import { useMemo, useRef, useEffect, useCallback, useState } from "react";
 import { Application, extend } from "@pixi/react";
-import { Container, Graphics, Text } from "pixi.js";
+import { Container, Graphics, Text, TextureStyle } from "pixi.js";
 import { TileMap } from "./TileMap";
 import { AgentSprite } from "./AgentSprite";
 import { useSimulationStore } from "../store/simulationStore";
+
+// CRITICAL: Set nearest-neighbor filtering for pixel-art crispness.
+// Must execute at module level BEFORE any Assets.load() call.
+// Setting this after load has no effect on already-loaded textures.
+TextureStyle.defaultOptions.scaleMode = 'nearest';
 
 // Register PixiJS display objects with @pixi/react v8 extend API.
 extend({ Container, Graphics, Text });
@@ -90,7 +95,7 @@ export function MapCanvas() {
       onPointerUp={onPointerUp}
       onPointerLeave={onPointerUp}
     >
-      <Application background={BG_COLOR} resizeTo={containerRef as React.RefObject<HTMLElement>}>
+      <Application roundPixels={true} background={BG_COLOR} resizeTo={containerRef as React.RefObject<HTMLElement>}>
         <pixiContainer x={offsetX} y={offsetY} scale={scale}>
           {/* Static tile map layer */}
           <TileMap />
