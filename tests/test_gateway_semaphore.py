@@ -193,9 +193,9 @@ async def test_debug_log_messages_on_acquire_and_release(monkeypatch, caplog):
         )
 
     log_text = " ".join(caplog.messages)
-    assert "LLM semaphore acquired" in log_text, (
-        f"Expected 'LLM semaphore acquired' in logs. Got: {caplog.messages}"
+    assert "LLM call:" in log_text, (
+        f"Expected 'LLM call:' in logs. Got: {caplog.messages}"
     )
-    assert "LLM semaphore released" in log_text, (
-        f"Expected 'LLM semaphore released' in logs. Got: {caplog.messages}"
+    assert "LLM done:" in log_text, (
+        f"Expected 'LLM done:' in logs. Got: {caplog.messages}"
     )

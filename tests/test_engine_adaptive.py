@@ -152,19 +152,19 @@ async def test_agent_step_safe_cold_start_floor_120(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Test 5: Slow provider — tick_interval=80 → timeout = max(160, 120) = 160
+# Test 5: Slow provider — tick capped at 20s → timeout = max(40, 120) = 120
 # ---------------------------------------------------------------------------
 async def test_agent_step_safe_slow_provider_above_floor(monkeypatch):
-    """Slow provider: tick_interval=80.0 → timeout = max(160, 120) = 160."""
-    # avg=53.33 * 1.5 = 80.0
+    """Slow provider: tick capped at 20.0 → timeout = max(40, 120) = 120."""
+    # avg=53.33 * 1.5 = 80.0, but capped at max_interval=20.0
     window = deque([53.33, 53.33, 53.34], maxlen=10)
     monkeypatch.setattr(gateway, "_latency_window", window)
 
     engine = _make_engine()
     tick = engine.tick_interval
-    # tick_interval = max(10, 80.0) = 80.0
-    assert tick == pytest.approx(80.0, rel=0.01), (
-        f"Precondition: expected tick_interval≈80.0, got {tick}"
+    # tick_interval = min(20, max(10, 80.0)) = 20.0 (capped)
+    assert tick == pytest.approx(20.0, rel=0.01), (
+        f"Precondition: expected tick_interval≈20.0 (capped), got {tick}"
     )
 
     captured_timeout = None
@@ -186,8 +186,8 @@ async def test_agent_step_safe_slow_provider_above_floor(monkeypatch):
 
     await engine._agent_step_safe("Carol", agent)
 
-    assert captured_timeout == pytest.approx(160.0, rel=0.01), (
-        f"Slow provider timeout should be 160 (floor no longer applies), got {captured_timeout}"
+    assert captured_timeout == pytest.approx(120.0, rel=0.01), (
+        f"Slow provider timeout should be 120 (floor applies since 40<120), got {captured_timeout}"
     )
 
 
