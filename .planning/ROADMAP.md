@@ -50,7 +50,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 
 **Milestone Goal:** Transform the prototype-looking UI into a pixel-art RPG town — CuteRPG tilesets, Tiled-authored map, animated directional agent sprites, and UI harmonized with the pixel-art aesthetic.
 
-- [ ] **Phase 10: Asset Pipeline** - Port CuteRPG tilesets and sprite sheets from reference repo; convert Phaser atlas to PixiJS format; configure scaleMode nearest
+- [x] **Phase 10: Asset Pipeline** - Port CuteRPG tilesets and sprite sheets from reference repo; convert Phaser atlas to PixiJS format; configure scaleMode nearest (completed 2026-04-12)
 - [ ] **Phase 11: Town Map Design & Backend Sync** - Author Agent Town-specific map in Tiled with thematic buildings; regenerate town.json; wire collision layer to backend pathfinding
 - [ ] **Phase 12: Tile Map Rendering** - Integrate pixi-tiledmap; render full building interiors and furniture from Tiled layers; depth ordering for foreground objects; loading screen
 - [ ] **Phase 13: Animated Agent Sprites** - Replace colored circles with AnimatedSprite walk cycles; directional facing; idle pose; portraits in inspector; pixel-art activity bubbles
@@ -80,8 +80,8 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
   3. PixiJS initializes with `scaleMode: 'nearest'` set before any `Assets.load()` call — confirmed by loading a single tile and observing crisp (non-blurred) pixel edges in the browser at 2x zoom.
 **Plans**: 2 plans
 Plans:
-- [ ] 10-01-PLAN.md — Port tileset and agent sprite assets + convert Phaser atlas to PixiJS format
-- [ ] 10-02-PLAN.md — Configure scaleMode nearest, CSS pixelated, roundPixels
+- [x] 10-01-PLAN.md — Port tileset and agent sprite assets + convert Phaser atlas to PixiJS format
+- [x] 10-02-PLAN.md — Configure scaleMode nearest, CSS pixelated, roundPixels
 **UI hint**: yes
 
 ---
@@ -149,7 +149,7 @@ Plans:
 
 | # | Phase | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|-----------------|
-| 10 | Asset Pipeline | Port assets, convert atlas, configure scaleMode | PIPE-01, PIPE-02, PIPE-03 | 3 |
+| 10 | Asset Pipeline | 2/2 | Complete    | 2026-04-12 |
 | 11 | Town Map Design & Backend Sync | Tiled map authored, town.json regenerated, collision from Tiled, reachability validated | TOWN-01, TOWN-02, TOWN-03, TOWN-04 | 4 |
 | 12 | Tile Map Rendering | pixi-tiledmap integration, depth ordering, loading screen, performance targets | TILE-01, TILE-02, TILE-03, TILE-04, PERF-01, PERF-02 | 6 |
 | 13 | Animated Agent Sprites | Walk cycles, directional facing, idle, portrait, bubbles | SPRT-01, SPRT-02, SPRT-03, SPRT-04, SPRT-05 | 5 |
