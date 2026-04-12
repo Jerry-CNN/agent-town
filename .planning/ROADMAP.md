@@ -145,7 +145,7 @@ Plans:
 - [ ] **Phase 8: Visual & Building Behavior** - Building walls visible on map with collision; agent text readable at default zoom; buildings respect operating hours
 - [ ] **Phase 9: LLM Optimization** - 2-level destination resolution, adaptive tick interval, conversation repetition detection, semaphore concurrency control, OpenRouter default
 - [x] **Phase 9.1: Backend Runtime Wiring** - Wire Event lifecycle + Agent wrappers into runtime engine (gap closure) (completed 2026-04-12)
-- [ ] **Phase 9.2: Visual Text Restoration** - Restore activity text on agent sprites, fix label contrast (gap closure)
+- [x] **Phase 9.2: Visual Text Restoration** - Restore activity text on agent sprites, fix label contrast (gap closure) (completed 2026-04-12)
 
 ### Planned: v1.2 Agent Behavior (after v1.1)
 
@@ -244,7 +244,7 @@ Plans:
 **UI hint**: yes
 
 Plans:
-- [ ] 09.2-01-PLAN.md — Restore activity text with pill background, human visual verification
+- [x] 09.2-01-PLAN.md — Restore activity text with pill background, human visual verification
 
 ---
 
@@ -299,7 +299,7 @@ Plans:
 | 8 | Visual & Building Behavior | Wall outlines, walkable collision, readable text, operating hours gating | BLD-02, BLD-03, VIS-01, VIS-02 | 4 |
 | 9 | LLM Optimization | 2-level resolution, adaptive tick, conversation termination, semaphore, OpenRouter default | LLM-01, LLM-02, LLM-03, LLM-04 | 4 |
 | 9.1 | Backend Runtime Wiring | 1/1 | Complete    | 2026-04-12 |
-| 9.2 | Visual Text Restoration | Restore activity text, fix label contrast | VIS-02 | 2 |
+| 9.2 | Visual Text Restoration | 1/1 | Complete   | 2026-04-12 |
 
 ### v1.2 Agent Behavior (planned)
 
