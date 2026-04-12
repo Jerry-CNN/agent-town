@@ -95,10 +95,7 @@ Plans:
   2. The backend `town.json` is regenerated from the Tiled export — sector names and arena coordinate boundaries match the map visually (an agent assigned to "Stock Exchange" navigates to the tile region where that building visually sits).
   3. Agent pathfinding uses the collision layer exported from Tiled rather than hardcoded obstacle data — blocking walls in Tiled halt agent movement; removing a wall in Tiled and re-exporting makes that tile walkable without any backend code change.
   4. Every agent home, workplace, and routine destination maps to a reachable walkable tile — no agent spawns in walls or has unreachable schedule destinations after the map export.
-**Plans**: 2 plans
-Plans:
-- [ ] 10-01-PLAN.md — Port tileset and agent sprite assets + convert Phaser atlas to PixiJS format
-- [ ] 10-02-PLAN.md — Configure scaleMode nearest, CSS pixelated, roundPixels
+**Plans**: TBD
 
 ---
 
@@ -113,10 +110,7 @@ Plans:
   4. A loading screen is displayed from app startup until all tile map assets have finished loading — the map does not flash with raw tile indices or blank tiles during load.
   5. Tile map with 17 layers and animated agent sprites renders at 30+ FPS with 10 agents on a standard laptop.
   6. Initial asset loading (tilesets + sprite sheets) completes within 5 seconds on a broadband connection.
-**Plans**: 2 plans
-Plans:
-- [ ] 10-01-PLAN.md — Port tileset and agent sprite assets + convert Phaser atlas to PixiJS format
-- [ ] 10-02-PLAN.md — Configure scaleMode nearest, CSS pixelated, roundPixels
+**Plans**: TBD
 **UI hint**: yes
 
 ---
@@ -131,10 +125,7 @@ Plans:
   3. When an agent reaches its destination and stops moving, the sprite displays a static idle frame rather than continuing to animate.
   4. The agent inspector sidebar shows a 32x32 portrait thumbnail for the selected agent, not a colored circle or placeholder.
   5. A pixel-art styled speech or activity bubble appears above each agent showing their current activity — the bubble uses pixel-art border styling (not a plain CSS div with rounded corners).
-**Plans**: 2 plans
-Plans:
-- [ ] 10-01-PLAN.md — Port tileset and agent sprite assets + convert Phaser atlas to PixiJS format
-- [ ] 10-02-PLAN.md — Configure scaleMode nearest, CSS pixelated, roundPixels
+**Plans**: TBD
 **UI hint**: yes
 
 ---
@@ -147,10 +138,7 @@ Plans:
   1. The sidebar background, button colors, and activity feed styling use a color palette that harmonizes with the CuteRPG tile palette — no mismatched modern gradient or flat Material-style colors dominating the layout.
   2. Map labels (agent names, building names) and at least one key UI element (e.g., the "Inject Event" button or panel header) use a pixel-art or retro-style font, not the default system sans-serif.
   3. The loading overlay shown at startup includes a visible progress indicator (bar, percentage, or step label) — the user can see the load is progressing rather than staring at a blank or static screen.
-**Plans**: 2 plans
-Plans:
-- [ ] 10-01-PLAN.md — Port tileset and agent sprite assets + convert Phaser atlas to PixiJS format
-- [ ] 10-02-PLAN.md — Configure scaleMode nearest, CSS pixelated, roundPixels
+**Plans**: TBD
 **UI hint**: yes
 
 ---
